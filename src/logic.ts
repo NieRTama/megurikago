@@ -1,0 +1,152 @@
+// 純粋な関数だけを置く（scripts/check-logic.ts から node で直接実行するため、enum など型以外の TS 構文は使わない）
+
+export type Tag = { id: string; name: string };
+
+/** 定期購入品 */
+export type Item = {
+  id: string;
+  name: string;
+  tagId?: string;
+  memo: string;
+  /** 登録時の購入周期（日）。購入が2回以上あれば学習値が優先 */
+  cycleDays: number;
+  /** documentDirectory 内のファイル名（絶対パスは再インストールで変わるので持たない） */
+  photo?: string;
+  url: string;
+  createdAt: string;
+  /** 自動追加モードで、この次回予定日のぶんはもうリストに入れた */
+  autoAddedFor?: string;
+};
+
+export type Purchase = { id: string; itemId?: string; name: string; tagId?: string; date: string };
+
+export type ListEntry = {
+  id: string;
+  name: string;
+  tagId?: string;
+  memo: string;
+  itemId?: string;
+  addedAt: number;
+  /** チェック済みなら記録した購入 */
+  purchaseId?: string;
+  /** チェックした日（この日のあいだ「今日買ったもの」に出す） */
+  checkedOn?: string;
+};
+
+export type Settings = {
+  notify: boolean;
+  notifyDaysBefore: number;
+  notifyHour: number;
+  /** true: 近づいたら自動でリストに追加 / false: 通知のみ */
+  autoAdd: boolean;
+  /** よく使うネットスーパーの検索URL。{q} を品名に置き換える */
+  superUrl: string;
+  checkHintShown: boolean;
+};
+
+export type State = {
+  version: 1;
+  /** 家族共有（後日）で使う世帯ID */
+  householdId: string;
+  items: Item[];
+  list: ListEntry[];
+  purchases: Purchase[];
+  tags: Tag[];
+  settings: Settings;
+};
+
+/** 棚で「もうすぐ」に入れる残り日数 */
+export const SOON_DAYS = 7;
+
+export const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+// 日付は端末ローカルの YYYY-MM-DD 文字列で持つ（new Date('YYYY-MM-DD') は UTC 扱いになるので使わない）
+const pad = (n: number) => String(n).padStart(2, '0');
+export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const today = () => ymd(new Date());
+export const toDate = (s: string, hour = 0) => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d, hour);
+};
+export const addDays = (s: string, n: number) => {
+  const d = toDate(s);
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+};
+export const diffDays = (from: string, to: string) => {
+  const [a, b] = [from, to].map((s) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  });
+  return Math.round((b - a) / 86400000);
+};
+export const md = (s: string) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
+
+/** 「11/2」「2026/11/2」「2026-11-02」を YYYY-MM-DD に。月日だけなら今日以前で一番近い年 */
+export function parseDateInput(input: string, todayStr: string): string | undefined {
+  const nums = input.trim().split(/[/\-.\s年月日]+/).filter(Boolean).map(Number);
+  if (nums.some(isNaN)) return;
+  let [y, m, d] = nums.length === 3 ? nums : [Number(todayStr.slice(0, 4)), nums[0], nums[1]];
+  if (nums.length !== 2 && nums.length !== 3) return;
+  const s = `${y}-${pad(m)}-${pad(d)}`;
+  if (m < 1 || m > 12 || d < 1 || toDate(s).getDate() !== d) return;
+  if (nums.length === 2 && s > todayStr) y -= 1;
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
+
+/** 同じ日の重複を除いた購入日（昇順） */
+export const purchaseDates = (itemId: string, purchases: Purchase[]) =>
+  [...new Set(purchases.filter((p) => p.itemId === itemId).map((p) => p.date))].sort();
+
+/** 学習した周期（日）。直近3回の間隔の平均。間隔が取れなければ登録時の周期 */
+export function cycleOf(item: Item, purchases: Purchase[]): number {
+  const dates = purchaseDates(item.id, purchases);
+  const gaps = dates.slice(1).map((d, i) => diffDays(dates[i], d)).slice(-3);
+  if (!gaps.length) return item.cycleDays;
+  return Math.max(1, Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length));
+}
+
+export const lastPurchase = (item: Item, purchases: Purchase[]) => purchaseDates(item.id, purchases).at(-1);
+
+export const nextDate = (item: Item, purchases: Purchase[]) =>
+  addDays(lastPurchase(item, purchases) ?? item.createdAt, cycleOf(item, purchases));
+
+/** リストに未購入で入っているか */
+export const inList = (itemId: string, list: ListEntry[]) => list.some((e) => e.itemId === itemId && !e.purchaseId);
+
+/**
+ * 予約する通知（日付ごとに1件にまとめる）。iOS の予約上限64件に収めるため最大 limit 件。
+ * 通知日 = 次回予定日 − N日。過ぎていれば今日。今日でも時刻を過ぎていれば翌日。リストに入っている品は除く。
+ */
+export function notifyPlan(s: State, todayStr: string, nowHour: number, limit = 60) {
+  const { notifyDaysBefore: n, notifyHour } = s.settings;
+  const byDate = new Map<string, string[]>();
+  for (const item of s.items) {
+    if (inList(item.id, s.list)) continue;
+    let date = addDays(nextDate(item, s.purchases), -n);
+    if (date < todayStr) date = todayStr;
+    if (date === todayStr && nowHour >= notifyHour) date = addDays(todayStr, 1);
+    byDate.set(date, [...(byDate.get(date) ?? []), item.name]);
+  }
+  return [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(0, limit)
+    .map(([date, names]) => ({ date, names }));
+}
+
+/** 起動・前面化のたびに当てる整理。前日以前にチェックした行を消し、自動追加モードなら近い品をリストへ */
+export function refresh(s: State, todayStr: string): State {
+  let list = s.list.filter((e) => !e.purchaseId || e.checkedOn === todayStr);
+  let items = s.items;
+  if (s.settings.autoAdd) {
+    items = s.items.map((item) => {
+      const next = nextDate(item, s.purchases);
+      if (item.autoAddedFor === next || diffDays(todayStr, next) > s.settings.notifyDaysBefore) return item;
+      if (!inList(item.id, list)) {
+        list = [...list, { id: newId(), name: item.name, tagId: item.tagId, memo: '', itemId: item.id, addedAt: Date.now() }];
+      }
+      return { ...item, autoAddedFor: next };
+    });
+  }
+  return list === s.list && items === s.items ? s : { ...s, list, items };
+}

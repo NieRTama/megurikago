@@ -1,0 +1,69 @@
+# 未署名の .ipa を作る（AltStore / SideStore が無料 Apple ID で署名し直して入れる）
+# 手動実行のみ（Actions タブ → Run workflow）。macOS ランナーは分数を多く使うため
+name: iOS unsigned ipa
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check
+        run: |
+          npm run check
+          npx tsc --noEmit
+
+      - name: Prebuild
+        run: npx expo prebuild --platform ios --clean
+
+      # expo-notifications が付ける aps-environment（プッシュ）は無料 Apple ID では署名できない。
+      # ローカル通知だけなら不要なので消し、ほかの entitlements も残っていないことを確かめる
+      - name: Strip entitlements
+        run: |
+          set -euo pipefail
+          for f in ios/*/*.entitlements; do
+            [ -e "$f" ] || continue
+            /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$f" 2>/dev/null || true
+            echo "== $f"; cat "$f"
+            if /usr/libexec/PlistBuddy -c "Print" "$f" | grep -q " = "; then
+              echo "entitlements が空ではありません。無料 Apple ID で署名できない項目がないか確認してください" >&2
+              exit 1
+            fi
+          done
+
+      # Debug だと JS バンドルが入らず、Metro なしでは起動しないので Release で作る
+      - name: Build (Release, unsigned)
+        run: |
+          set -euo pipefail
+          WS=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build -quiet \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package ipa
+        run: |
+          set -euo pipefail
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
+          test -f "$APP/main.jsbundle" || { echo "JS バンドルが .app に入っていません" >&2; exit 1; }
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry megurikago.ipa Payload
+          ls -lh megurikago.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: megurikago-ipa
+          path: megurikago.ipa
+          retention-days: 14
