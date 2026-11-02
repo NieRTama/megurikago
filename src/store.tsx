@@ -3,7 +3,7 @@ import { File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, AppState, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, AppState, LayoutAnimation, View } from 'react-native';
 import { newId, notifyPlan, refresh, today, toDate, type ListEntry, type Purchase, type State } from './logic';
 
 const KEY = 'state:v1';
@@ -58,6 +58,14 @@ async function reschedule(s: State) {
 
 let scheduling = Promise.resolve();
 
+// 「視差効果を減らす」がオンなら動かさない
+let reduceMotion = false;
+AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduceMotion = v));
+AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => (reduceMotion = v));
+
+/** 次の再描画で並びや高さの変化を滑らかに動かす（RN 標準の LayoutAnimation） */
+export const smooth = () => !reduceMotion && LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State | null>(null);
   const [day, setDay] = useState(today);
@@ -91,7 +99,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       </View>
     );
   }
-  const update = (fn: (s: State) => State) => setState((s) => (s ? fn(s) : s));
+  const update = (fn: (s: State) => State) => {
+    smooth();
+    setState((s) => (s ? fn(s) : s));
+  };
   return <StoreContext.Provider value={{ state, day, update }}>{children}</StoreContext.Provider>;
 }
 

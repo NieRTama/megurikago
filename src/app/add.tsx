@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { newId, type ListEntry } from '../logic';
 import { addToList, removeEntry, useStore } from '../store';
-import { Button, C, s, TagBar, tagName } from '../ui';
+import { Button, C, s, smooth, TagBar, tagName } from '../ui';
 
 type Draft = Pick<ListEntry, 'id' | 'name' | 'tagId' | 'memo' | 'itemId'>;
 
@@ -22,6 +22,7 @@ export default function AddSheet() {
     const item = state.items.find((i) => i.name === e.name);
     const entry = { ...e, tagId: e.tagId ?? item?.tagId, itemId: item?.id, id: newId() };
     update((st) => addToList(st, entry, entry.id));
+    smooth();
     setAdded((a) => [...a, entry]);
     setName('');
     setMemo(memo === undefined ? undefined : '');
@@ -71,7 +72,7 @@ export default function AddSheet() {
         )}
       </ScrollView>
 
-      <View style={{ paddingVertical: 12, gap: 10, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
+      <View style={{ paddingVertical: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line, backgroundColor: C.card }}>
         <TagBar tags={state.tags} value={tagId} onChange={setTagId} allLabel="店の指定なし" style={{ flexGrow: 0 }} />
         <View style={{ paddingHorizontal: 16, gap: 8 }}>
           <TextInput
@@ -87,7 +88,7 @@ export default function AddSheet() {
           />
           {memo !== undefined && <TextInput value={memo} onChangeText={setMemo} placeholder="メモ（例: 2本）" style={s.input} onSubmitEditing={() => add()} submitBehavior="submit" />}
           <View style={[s.row, { justifyContent: 'space-between' }]}>
-            <Pressable onPress={() => setMemo(memo === undefined ? '' : undefined)} hitSlop={6}>
+            <Pressable onPress={() => (smooth(), setMemo(memo === undefined ? '' : undefined))} hitSlop={6}>
               <Text style={s.link}>{memo === undefined ? '＋メモ' : 'メモを消す'}</Text>
             </Pressable>
             <Button label="追加" onPress={() => add()} disabled={!name.trim()} />

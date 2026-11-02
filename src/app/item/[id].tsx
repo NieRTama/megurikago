@@ -2,8 +2,8 @@ import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { addPurchase, addToList, deleteItem, deletePhoto, removeEntry, useStore } from '../../store';
-import { cycleOf, diffDays, lastPurchase, md, newId, nextDate } from '../../logic';
-import { askDate, Button, C, s, tagName, Thumb } from '../../ui';
+import { cycleOf, diffDays, lastPurchase, md, newId, nextDate, SOON_DAYS } from '../../logic';
+import { askDate, Button, C, RhythmBar, s, smooth, tagName, Thumb } from '../../ui';
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,11 +53,18 @@ export default function ItemDetail() {
       />
       <View style={{ alignItems: 'center', gap: 10, paddingVertical: 16 }}>
         <Thumb item={item} name={item.name} size={160} />
-        <Text style={{ fontSize: 24, fontWeight: '800', color: C.ink }}>{item.name}</Text>
+        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: C.ink }}>{item.name}</Text>
         <Text style={s.small}>{tagName(state.tags, item.tagId) ?? '店の指定なし'}</Text>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: left <= 7 ? C.soon : C.main }}>
-          {left <= 0 ? `次に買う日を${-left}日過ぎています` : `次に買うのは あと${left}日（${md(nextDate(item, state.purchases))}ごろ）`}
-        </Text>
+        <View style={{ alignSelf: 'stretch', paddingHorizontal: 40, gap: 8, marginTop: 6 }}>
+          <Text style={[s.num, { textAlign: 'center', fontSize: 44, fontWeight: '200', letterSpacing: -1, color: left <= SOON_DAYS ? C.soon : C.ink }]}>
+            {left <= 0 ? '今' : left}
+            <Text style={{ fontSize: 15, fontWeight: '500', color: C.sub }}>{left <= 0 ? ' が買い時' : ' 日後'}</Text>
+          </Text>
+          <RhythmBar progress={1 - left / cycleOf(item, state.purchases)} soon={left <= SOON_DAYS} />
+          <Text style={[s.small, { textAlign: 'center' }]}>
+            {left < 0 ? `予定の${md(nextDate(item, state.purchases))}を${-left}日過ぎています` : `${md(nextDate(item, state.purchases))}ごろ`}
+          </Text>
+        </View>
         {!!item.memo && <Text style={[s.text, { paddingHorizontal: 24 }]}>{item.memo}</Text>}
       </View>
 
@@ -97,7 +104,7 @@ export default function ItemDetail() {
           </View>
         )}
         {(allHistory ? history : history.slice(0, 3)).map((p) => (
-          <View key={p.id} style={[s.row, { borderTopWidth: 1, borderColor: C.line, paddingTop: 8 }]}>
+          <View key={p.id} style={[s.row, s.divider, { paddingTop: 10 }]}>
             <Text style={[s.text, { flex: 1 }]}>{p.date.replaceAll('-', '/')}</Text>
             <Pressable onPress={() => removePurchase(p.id, p.date)} hitSlop={6}>
               <Text style={[s.small, { color: C.danger }]}>削除</Text>
@@ -105,7 +112,7 @@ export default function ItemDetail() {
           </View>
         ))}
         {history.length > 3 && (
-          <Pressable onPress={() => setAllHistory(!allHistory)}>
+          <Pressable onPress={() => (smooth(), setAllHistory(!allHistory))}>
             <Text style={s.link}>{allHistory ? '閉じる' : `すべて見る（${history.length}件）`}</Text>
           </Pressable>
         )}

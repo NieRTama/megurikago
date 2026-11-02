@@ -2,9 +2,9 @@ import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { diffDays, inList, nextDate, SOON_DAYS, type Item } from '../../logic';
+import { cycleOf, diffDays, inList, nextDate, SOON_DAYS, type Item } from '../../logic';
 import { addToList, useStore } from '../../store';
-import { C, s, TagBar, Thumb } from '../../ui';
+import { C, press, RhythmBar, s, smooth, TagBar, Thumb } from '../../ui';
 
 const SORTS = ['期限順', '追加順', '店ごと'] as const;
 
@@ -33,12 +33,12 @@ export default function Shelf() {
 
   return (
     <SafeAreaView edges={['top']} style={s.screen}>
-      <View style={[s.row, { paddingRight: 16 }]}>
+      <View style={[s.row, { paddingRight: 20, gap: 16 }]}>
         <Text style={[s.title, { flex: 1 }]}>いつもの</Text>
-        <Pressable onPress={() => setQuery(query === undefined ? '' : undefined)} hitSlop={8}>
+        <Pressable onPress={() => (smooth(), setQuery(query === undefined ? '' : undefined))} hitSlop={8}>
           <Text style={s.link}>{query === undefined ? '検索' : '閉じる'}</Text>
         </Pressable>
-        <Pressable onPress={() => setSort(SORTS[(SORTS.indexOf(sort) + 1) % SORTS.length])} hitSlop={8}>
+        <Pressable onPress={() => (smooth(), setSort(SORTS[(SORTS.indexOf(sort) + 1) % SORTS.length]))} hitSlop={8}>
           <Text style={s.link}>{sort} ⇅</Text>
         </Pressable>
         <Link href="/item/edit" asChild>
@@ -48,9 +48,9 @@ export default function Shelf() {
         </Link>
       </View>
       {query !== undefined && (
-        <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="品名・メモで探す" style={[s.input, { marginHorizontal: 16, marginBottom: 10 }]} clearButtonMode="while-editing" />
+        <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="品名・メモで探す" style={[s.input, { marginHorizontal: 16, marginBottom: 12 }]} clearButtonMode="while-editing" />
       )}
-      <TagBar tags={state.tags} value={tagId} onChange={setTagId} allLabel="すべて" style={{ flexGrow: 0 }} />
+      <TagBar tags={state.tags} value={tagId} onChange={setTagId} allLabel="すべて" style={{ flexGrow: 0, marginBottom: 4 }} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {!state.items.length && (
@@ -63,9 +63,9 @@ export default function Shelf() {
           list.length ? (
             <View key={label}>
               {label ? <Text style={s.h2}>{label}</Text> : <View style={{ height: 12 }} />}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10 }}>
                 {list.map((item) => (
-                  <Card key={item.id} item={item} left={left(item)} listed={inList(item.id, state.list)} onAdd={() => update((st) => addToList(st, { name: item.name, tagId: item.tagId, memo: '', itemId: item.id }))} />
+                  <Card key={item.id} item={item} left={left(item)} cycle={cycleOf(item, state.purchases)} listed={inList(item.id, state.list)} onAdd={() => update((st) => addToList(st, { name: item.name, tagId: item.tagId, memo: '', itemId: item.id }))} />
                 ))}
               </View>
             </View>
@@ -76,25 +76,29 @@ export default function Shelf() {
   );
 }
 
-function Card({ item, left, listed, onAdd }: { item: Item; left: number; listed: boolean; onAdd: () => void }) {
+function Card({ item, left, cycle, listed, onAdd }: { item: Item; left: number; cycle: number; listed: boolean; onAdd: () => void }) {
   const soon = left <= SOON_DAYS;
   return (
-    <View style={{ width: '33.33%', padding: 4 }}>
-      <Pressable onPress={() => router.push(`/item/${item.id}`)} style={{ backgroundColor: C.card, borderRadius: 14, padding: 8, alignItems: 'center', gap: 6 }}>
-        <View>
-          <Thumb item={item} name={item.name} size={84} />
-          <Text style={{ position: 'absolute', top: -4, left: -4, overflow: 'hidden', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, fontSize: 11, fontWeight: '700', backgroundColor: soon ? C.soon : C.mainSoft, color: soon ? '#fff' : C.main }}>
-            {left <= 0 ? '買い時' : `あと${left}日`}
-          </Text>
+    <View style={{ width: '50%', padding: 6 }}>
+      <Pressable onPress={() => router.push(`/item/${item.id}`)} style={(st) => [s.card, { marginHorizontal: 0, padding: 12, gap: 10 }, press(st)]}>
+        <View style={s.row}>
+          <Thumb item={item} name={item.name} size={52} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.num, { fontSize: 26, fontWeight: '300', letterSpacing: -0.5, color: soon ? C.soon : C.ink }]}>
+              {left <= 0 ? '今' : left}
+              <Text style={{ fontSize: 12, fontWeight: '500', color: C.sub }}>{left <= 0 ? ' が買い時' : ' 日後'}</Text>
+            </Text>
+          </View>
         </View>
-        <Text numberOfLines={1} style={{ fontSize: 14, color: C.ink, fontWeight: '600' }}>
+        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: C.ink }}>
           {item.name}
         </Text>
+        <RhythmBar progress={1 - left / cycle} soon={soon} />
         {listed ? (
-          <Text style={[s.small, { paddingVertical: 4 }]}>リストにあり</Text>
+          <Text style={[s.small, { paddingVertical: 3 }]}>リストに入っています</Text>
         ) : (
-          <Pressable onPress={onAdd} hitSlop={6} style={{ backgroundColor: soon ? C.soonSoft : C.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: soon ? C.soon : C.main }}>＋リストへ</Text>
+          <Pressable onPress={onAdd} hitSlop={6} style={(st) => [{ alignSelf: 'flex-start', paddingVertical: 3 }, press(st)]}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.main }}>＋ リストへ</Text>
           </Pressable>
         )}
       </Pressable>

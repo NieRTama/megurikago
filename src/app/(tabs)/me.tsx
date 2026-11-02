@@ -77,7 +77,7 @@ export default function Me() {
         <Text style={s.h2}>お店（並び順はリストの見出し順）</Text>
         <View style={[s.card, { paddingVertical: 4 }]}>
           {state.tags.map((t, i) => (
-            <View key={t.id} style={[s.row, { paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }]}>
+            <View key={t.id} style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
               <Pressable style={{ flex: 1 }} onPress={() => Alert.prompt('名前を変える', undefined, (name) => name.trim() && update((x) => ({ ...x, tags: x.tags.map((y) => (y.id === t.id ? { ...y, name: name.trim() } : y)) })), 'plain-text', t.name)}>
                 <Text style={s.text}>{t.name}</Text>
               </Pressable>

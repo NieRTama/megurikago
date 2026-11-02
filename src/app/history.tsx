@@ -1,6 +1,6 @@
 import { ScrollView, Text, View } from 'react-native';
 import { useStore } from '../store';
-import { C, s, tagName } from '../ui';
+import { s, tagName } from '../ui';
 
 export default function History() {
   const { state } = useStore();
@@ -15,7 +15,7 @@ export default function History() {
           <Text style={s.h2}>{date.replaceAll('-', '/')}</Text>
           <View style={[s.card, { paddingVertical: 4 }]}>
             {ps.map((p, i) => (
-              <View key={p.id} style={[s.row, { paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }]}>
+              <View key={p.id} style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
                 <Text style={[s.text, { flex: 1 }]}>{p.name}</Text>
                 <Text style={s.small}>{tagName(state.tags, p.tagId) ?? ''}</Text>
               </View>

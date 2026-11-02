@@ -7,7 +7,7 @@ export default function RootLayout() {
   return (
     <StoreProvider>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerTintColor: C.main, headerBackButtonDisplayMode: 'minimal', contentStyle: { backgroundColor: C.bg } }}>
+      <Stack screenOptions={{ headerTintColor: C.main, headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false, headerStyle: { backgroundColor: C.bg }, headerTitleStyle: { color: C.ink, fontWeight: '600' }, contentStyle: { backgroundColor: C.bg } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="item/[id]" options={{ title: '' }} />
         <Stack.Screen name="item/edit" options={{ presentation: 'modal' }} />
