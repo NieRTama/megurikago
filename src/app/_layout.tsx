@@ -3,6 +3,9 @@ import { StatusBar } from 'expo-status-bar';
 import { StoreProvider } from '../store';
 import { C } from '../ui';
 
+// ウィジェットなどから /add を直接開いても、後ろにタブが残るようにする
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 export default function RootLayout() {
   return (
     <StoreProvider>
@@ -13,6 +16,9 @@ export default function RootLayout() {
         <Stack.Screen name="item/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add" options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: [0.9], sheetGrabberVisible: true }} />
         <Stack.Screen name="history" options={{ title: '購入履歴' }} />
+        <Stack.Screen name="ai" options={{ title: 'AI の利用' }} />
+        <Stack.Screen name="share" options={{ title: '家族と共有・バックアップ' }} />
+        <Stack.Screen name="help" options={{ title: '使い方' }} />
       </Stack>
     </StoreProvider>
   );

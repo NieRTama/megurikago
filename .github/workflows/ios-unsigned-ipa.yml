@@ -28,22 +28,35 @@ jobs:
         run: npx expo prebuild --platform ios --clean
 
       # expo-notifications が付ける aps-environment（プッシュ）は無料 Apple ID では署名できない。
-      # ローカル通知だけなら不要なので消し、ほかの entitlements も残っていないことを確かめる
+      # ローカル通知だけなら不要なので消す。App Group（com.apple.security.application-groups）だけは残す
+      # （ウィジェットとのデータ共有用。AltStore が無料 Apple ID でも登録できる）。ほかが残っていたら失敗させる。
+      # 本体は ios/<app>/*.entitlements、ウィジェットは ios/.targets/*/*.entitlements に出る
       - name: Strip entitlements
         run: |
           set -euo pipefail
-          for f in ios/*/*.entitlements; do
+          found=0
+          for f in ios/*/*.entitlements ios/.targets/*/*.entitlements; do
             [ -e "$f" ] || continue
+            found=1
             /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$f" 2>/dev/null || true
             echo "== $f"; cat "$f"
-            if /usr/libexec/PlistBuddy -c "Print" "$f" | grep -q " = "; then
-              echo "entitlements が空ではありません。無料 Apple ID で署名できない項目がないか確認してください" >&2
+            extra=$(plutil -convert json -o - "$f" | python3 -c 'import json,sys; print(chr(10).join(k for k in json.load(sys.stdin) if k != "com.apple.security.application-groups"))')
+            if [ -n "$extra" ]; then
+              echo "App Group 以外の entitlements が残っています。無料 Apple ID で署名できない項目がないか確認してください: $extra" >&2
               exit 1
             fi
           done
+          [ "$found" = 1 ] || { echo "entitlements ファイルが見つかりません（App Group が付いていません）" >&2; exit 1; }
+          ls ios/.targets/*/*.entitlements >/dev/null || { echo "ウィジェットの entitlements が生成されていません" >&2; exit 1; }
 
       # Debug だと JS バンドルが入らず、Metro なしでは起動しないので Release で作る
+      # Firebase の設定値（リポジトリの Secrets）。JS バンドルを作るこのステップで EXPO_PUBLIC_ の参照に埋め込まれる。未登録なら空のまま（共有は使えない版になる）
       - name: Build (Release, unsigned)
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
         run: |
           set -euo pipefail
           WS=$(ls -d ios/*.xcworkspace | head -1)
@@ -52,11 +65,33 @@ jobs:
             -destination 'generic/platform=iOS' -derivedDataPath build -quiet \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
+      # 未署名だと entitlements がバイナリに入らず、AltStore が App Group を登録できない。
+      # ad-hoc 署名で entitlements を埋める（AltStore は署名し直すが、App Group の要求はここから読む）。内側から順に署名する
+      - name: Ad-hoc sign with entitlements
+        run: |
+          set -euo pipefail
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
+          APP_ENT=$(ls ios/*/*.entitlements | head -1)
+          WIDGET_ENT=$(ls ios/.targets/widget/*.entitlements | head -1)
+          [ -f "$APP_ENT" ] && [ -f "$WIDGET_ENT" ] || { echo "entitlements が見つかりません" >&2; exit 1; }
+          for f in "$APP"/Frameworks/*; do
+            [ -e "$f" ] || continue
+            codesign -f -s - "$f"
+          done
+          for x in "$APP"/PlugIns/*.appex; do
+            codesign -f -s - --entitlements "$WIDGET_ENT" "$x"
+            codesign -d --entitlements :- "$x" | grep -q application-groups || { echo "$x に App Group が入っていません" >&2; exit 1; }
+          done
+          codesign -f -s - --entitlements "$APP_ENT" "$APP"
+          codesign -d --entitlements :- "$APP" | grep -q application-groups || { echo "$APP に App Group が入っていません" >&2; exit 1; }
+
       - name: Package ipa
         run: |
           set -euo pipefail
           APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
           test -f "$APP/main.jsbundle" || { echo "JS バンドルが .app に入っていません" >&2; exit 1; }
+          ls "$APP"/PlugIns/*.appex >/dev/null 2>&1 || { echo "ウィジェットの .appex が .app/PlugIns/ に入っていません" >&2; exit 1; }
+          ls -d "$APP"/PlugIns/*.appex
           mkdir Payload
           cp -R "$APP" Payload/
           zip -qry megurikago.ipa Payload

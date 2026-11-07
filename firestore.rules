@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function hh(hid) { return get(/databases/$(db)/documents/households/$(hid)).data; }
+    function member(hid) { return signedIn() && request.auth.uid in hh(hid).members; }
+
+    match /codes/{code} {
+      allow get: if signedIn();
+      // そのグループの今のコードと同じ名前でしか作れない（先に households の code を書き換えてから作る）
+      allow create: if signedIn() && member(request.resource.data.hid) && hh(request.resource.data.hid).code == code;
+      allow delete: if signedIn() && member(resource.data.hid);
+    }
+    match /households/{hid} {
+      allow create: if signedIn() && request.resource.data.members == [request.auth.uid];
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      // メンバーは何でも更新できる / 非メンバーは「joins.{自分の uid} に今のコードを書いて自分を足す」だけ。
+      // 添え書きを uid ごとにするのは、他人の残した値に便乗させないため。
+      // hid を知っていても今のコードを知らなければ入れない（外した端末はコードを作り直せば戻れない）
+      allow update: if member(hid)
+        || (signedIn()
+            && request.resource.data.members == resource.data.members.concat([request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'joins'])
+            && request.resource.data.joins.diff(resource.data.get('joins', {})).affectedKeys().hasOnly([request.auth.uid])
+            && request.resource.data.joins[request.auth.uid] == resource.data.code);
+      match /{col}/{id} {
+        allow read, write: if member(hid);
+      }
+    }
+  }
+}

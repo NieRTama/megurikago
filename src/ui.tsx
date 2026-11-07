@@ -1,6 +1,8 @@
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { photoUri, smooth } from './store';
-import { addDays, parseDateInput, type Item, type Tag } from './logic';
+import { useState } from 'react';
+import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ICONS } from './icons.generated';
+import { photoUri, smooth, toggleIconOff, useStore } from './store';
+import { addDays, matchIcon, parseDateInput, type Item, type Tag } from './logic';
 
 // 藍と真鍮。うす墨の地に白い面、色は「主色」と「もうすぐ」の2つだけ
 export const C = {
@@ -63,14 +65,58 @@ export function TagBar({
   );
 }
 
-/** 写真、なければ頭文字の丸 */
+/** 品名に合ういらすとやがあるか（外していても true） */
+export const hasIcon = (name: string) => !!matchIcon(name, ICONS);
+
+/** 写真 → 品名に合ういらすとや（外した品を除く） → 頭文字。切り抜き（.png）といらすとやは余白をとって収める。棚を「元の写真」にしていれば photoOrig を優先 */
 export function Thumb({ item, name, size }: { item?: Item; name: string; size: number }) {
+  const { state, tick } = useStore();
+  const { iconOff, shelfView } = state.settings;
+  const key = item?.name ?? name; // 外したアイコンの照合キー。棚・リスト・拡大で同じ品は同じキーにする
   const style = { width: size, height: size, borderRadius: size * 0.28 };
-  if (item?.photo) return <Image source={{ uri: photoUri(item.photo) }} style={style} />;
+  const shown = item?.photo && shelfView === 'photo' && item.photoOrig ? item.photoOrig : item?.photo;
+  if (shown && !shown.endsWith('.png')) return <Image key={tick} source={{ uri: photoUri(shown) }} style={style} />;
+  const icon = shown ? { uri: photoUri(shown) } : iconOff.includes(key.trim()) ? undefined : matchIcon(key, ICONS);
+  if (icon)
+    return (
+      <View style={[style, s.initial]}>
+        <Image key={tick} source={icon} resizeMode="contain" style={{ width: size * 0.8, height: size * 0.8 }} />
+      </View>
+    );
   return (
     <View style={[style, s.initial]}>
       <Text style={{ fontSize: size * 0.4, color: C.main, fontWeight: '300' }}>{name.slice(0, 1)}</Text>
     </View>
+  );
+}
+
+/** 押すと大きく見られる Thumb（買い物リスト用）。モーダルの下部で、いらすとやのアイコンを外す／戻す */
+export function ZoomThumb({ item, name, memo, shop, size }: { item?: Item; name: string; memo?: string; shop?: string; size: number }) {
+  const [open, setOpen] = useState(false);
+  const { state, update } = useStore();
+  const { width } = useWindowDimensions();
+  const key = item?.name ?? name;
+  const off = state.settings.iconOff.includes(key.trim());
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} hitSlop={6} accessibilityLabel={`${name}の画像を拡大`}>
+        <Thumb item={item} name={name} size={size} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
+          <Pressable style={s.zoomCard} onPress={() => {}}>
+            <Thumb item={item} name={name} size={Math.min(width * 0.7, 320)} />
+            <Text style={{ fontSize: 22, fontWeight: '700', color: C.ink }}>{name}</Text>
+            {!!memo && <Text style={s.small}>{memo}</Text>}
+            {!!shop && <Text style={s.small}>{shop}</Text>}
+            <View style={{ alignSelf: 'stretch', gap: 8, marginTop: 8 }}>
+              {!item?.photo && hasIcon(key) && <Button kind="ghost" label={off ? 'アイコンを戻す' : 'このアイコンを外す'} onPress={() => update((st) => toggleIconOff(st, key))} />}
+              <Button label="閉じる" onPress={() => setOpen(false)} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -122,6 +168,8 @@ export const s = StyleSheet.create({
   chipOn: { backgroundColor: C.ink, borderColor: C.ink },
   chipText: { fontSize: 14, color: C.ink },
   chipTextOn: { color: '#fff', fontWeight: '600' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(30,39,51,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  zoomCard: { backgroundColor: C.card, borderRadius: 20, padding: 20, alignItems: 'center', gap: 8, alignSelf: 'stretch' },
   initial: { backgroundColor: C.mainSoft, alignItems: 'center', justifyContent: 'center' },
   btn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center' },
   btnMain: { backgroundColor: C.main },

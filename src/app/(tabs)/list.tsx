@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { md, nextDate, type ListEntry } from '../../logic';
 import { checkEntry, removeEntry, uncheckEntry, useStore } from '../../store';
-import { askDate, C, press, s, smooth, TagBar, tagName, Thumb } from '../../ui';
+import { askDate, C, press, s, smooth, TagBar, tagName, ZoomThumb } from '../../ui';
 
 export default function ShoppingList() {
   const { state, day, update } = useStore();
@@ -82,7 +82,7 @@ export default function ShoppingList() {
                         onPress={() => !done && check(e)}
                         onLongPress={() => Alert.alert(`${e.name}をリストから外しますか？`, undefined, [{ text: 'やめる', style: 'cancel' }, { text: '外す', style: 'destructive', onPress: () => update((st) => removeEntry(st, e.id)) }])}
                         style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
-                        <Thumb item={item(e)} name={e.name} size={36} />
+                        <ZoomThumb item={item(e)} name={e.name} memo={e.memo} shop={tagName(state.tags, e.tagId)} size={36} />
                         <View style={{ flex: 1 }}>
                           <Text style={[s.text, done && { textDecorationLine: 'line-through', color: C.sub }]}>{e.name}</Text>
                           {!!e.memo && <Text style={s.small}>{e.memo}</Text>}
@@ -113,6 +113,7 @@ export default function ShoppingList() {
                   const it = item(e);
                   return (
                     <View key={e.id} style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
+                      <ZoomThumb item={it} name={e.name} memo={e.memo} shop={tagName(state.tags, e.tagId)} size={36} />
                       <View style={{ flex: 1 }}>
                         <Text style={[s.text, { color: C.sub }]}>{e.name}</Text>
                         {it && <Text style={s.small}>次は{md(nextDate(it, state.purchases))}ごろ</Text>}

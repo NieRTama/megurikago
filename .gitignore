@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -42,3 +43,7 @@ yarn-error.*
 
 # 参考アプリのスクショ（著作物のため公開リポジトリに入れない）
 docs/ref/
+
+# いらすとやの画像（規約で再配布不可のため取得のみ。scripts/fetch-icons.mjs）
+assets/irasutoya/
+src/icons.generated.ts

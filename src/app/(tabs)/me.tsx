@@ -1,11 +1,11 @@
 import * as Notifications from 'expo-notifications';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Share, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { newId, type Settings, type State } from '../../logic';
-import { useStore } from '../../store';
-import { C, s } from '../../ui';
+import { newId, notifySummary, type Settings, type State } from '../../logic';
+import { useStore, withDefaults } from '../../store';
+import { C, Chip, s } from '../../ui';
 
 export default function Me() {
   const { state, update } = useStore();
@@ -31,8 +31,16 @@ export default function Me() {
       try {
         const data = JSON.parse(text) as State;
         if (data.version !== 1 || ![data.items, data.list, data.purchases, data.tags].every(Array.isArray)) throw new Error('形式が違います');
-        update(() => data);
-        Alert.alert('読み込みました', '写真はバックアップに含まれないため、必要なら撮り直してください。');
+        // 家族グループの参加状態は書き出しに頼らず、この端末のものを保つ（クラウドの内容は、参加中なら読み込んだ内容に合わせて更新される）
+        const go = () => {
+          update((cur) => ({ ...withDefaults(data), cloud: cur.cloud }));
+          Alert.alert('読み込みました', '写真はバックアップに含まれないため、必要なら撮り直してください。');
+        };
+        if (!state.cloud) return go();
+        Alert.alert('家族のクラウドのデータも置き換わります', '家族グループに参加中なので、読み込んだ内容がクラウドにも送られ、ほかの人の端末のデータも置き換わります。', [
+          { text: 'やめる', style: 'cancel' },
+          { text: '読み込む', style: 'destructive', onPress: go },
+        ]);
       } catch (e) {
         Alert.alert('読み込めませんでした', String(e));
       }
@@ -50,14 +58,61 @@ export default function Me() {
           </Pressable>
         )}
 
+        <Link href="/share" asChild>
+          <Pressable style={StyleSheet.flatten([s.card, s.row, { marginTop: 12 }])}>
+            <Text style={[s.text, { flex: 1 }]}>家族と共有・バックアップ</Text>
+            <Text style={s.small}>{state.cloud ? '参加中' : 'オフ'} ›</Text>
+          </Pressable>
+        </Link>
+
         <Link href="/history" asChild>
-          <Pressable style={[s.card, s.row, { marginTop: 12 }]}>
+          <Pressable style={StyleSheet.flatten([s.card, s.row, { marginTop: 8 }])}>
             <Text style={[s.text, { flex: 1 }]}>購入履歴</Text>
             <Text style={s.small}>{state.purchases.length}件 ›</Text>
           </Pressable>
         </Link>
 
+        <View style={[s.card, { marginTop: 8, paddingVertical: 4 }]}>
+          <Link href="/ai" asChild>
+            <Pressable style={StyleSheet.flatten([s.row, { paddingVertical: 12 }])}>
+              <Text style={[s.text, { flex: 1 }]}>AI の利用</Text>
+              <Text style={s.small}>{st.aiPhoto || st.aiVoice ? 'オン' : 'オフ'} ›</Text>
+            </Pressable>
+          </Link>
+          <Link href="/help" asChild>
+            <Pressable style={StyleSheet.flatten([s.row, { paddingVertical: 12 }, s.divider])}>
+              <Text style={[s.text, { flex: 1 }]}>使い方</Text>
+              <Text style={s.small}>›</Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        <Text style={s.h2}>棚の見え方（写真つきの品）</Text>
+        <View style={[s.row, { paddingHorizontal: 16 }]}>
+          <Chip label="切り抜き" on={st.shelfView === 'cutout'} onPress={() => setS({ shelfView: 'cutout' })} />
+          <Chip label="元の写真" on={st.shelfView === 'photo'} onPress={() => setS({ shelfView: 'photo' })} />
+        </View>
+
+        {!!st.iconOff.length && (
+          <>
+            <Text style={s.h2}>外したアイコン（{st.iconOff.length}件）</Text>
+            <View style={[s.card, { paddingVertical: 4 }]}>
+              {st.iconOff.map((name, i) => (
+                <View key={name} style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
+                  <Text style={[s.text, { flex: 1 }]}>{name}</Text>
+                  <Pressable onPress={() => setS({ iconOff: st.iconOff.filter((x) => x !== name) })} hitSlop={6}>
+                    <Text style={s.link}>戻す</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
         <Text style={s.h2}>お知らせ</Text>
+        <View style={[s.card, { marginBottom: 8 }]}>
+          <Text style={s.small}>{notifySummary(st, allowed)}</Text>
+        </View>
         <View style={[s.card, { gap: 14 }]}>
           <View style={s.row}>
             <Text style={[s.text, { flex: 1 }]}>買う時期を通知する</Text>

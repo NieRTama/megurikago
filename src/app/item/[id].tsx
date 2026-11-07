@@ -106,6 +106,7 @@ export default function ItemDetail() {
         {(allHistory ? history : history.slice(0, 3)).map((p) => (
           <View key={p.id} style={[s.row, s.divider, { paddingTop: 10 }]}>
             <Text style={[s.text, { flex: 1 }]}>{p.date.replaceAll('-', '/')}</Text>
+            {state.cloud && !!p.by && <Text style={s.small}>{p.by}</Text>}
             <Pressable onPress={() => removePurchase(p.id, p.date)} hitSlop={6}>
               <Text style={[s.small, { color: C.danger }]}>削除</Text>
             </Pressable>
@@ -140,6 +141,7 @@ export default function ItemDetail() {
                 onPress: () => {
                   router.back();
                   if (item.photo) deletePhoto(item.photo);
+                  if (item.photoOrig) deletePhoto(item.photoOrig);
                   update((st) => deleteItem(st, item.id));
                 },
               },

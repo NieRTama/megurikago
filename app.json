@@ -12,6 +12,11 @@
       "infoPlist": {
         "CFBundleDisplayName": "めぐりかご",
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.niertama.megurikago"
+        ]
       }
     },
     "android": {
@@ -33,9 +38,18 @@
         {
           "photosPermission": "品の写真を選ぶために使います。",
           "cameraPermission": "品の写真を撮るために使います。",
-          "microphonePermission": false
+          "microphonePermission": "話して品を入れるために、マイクを使います。"
         }
-      ]
+      ],
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "話して品を入れるために、マイクを使います。",
+          "speechRecognitionPermission": "話した内容を文字にするために、音声認識を使います。"
+        }
+      ],
+      "@bacons/apple-targets"
     ],
     "scheme": "megurikago"
   }

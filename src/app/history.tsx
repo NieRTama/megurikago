@@ -17,7 +17,7 @@ export default function History() {
             {ps.map((p, i) => (
               <View key={p.id} style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
                 <Text style={[s.text, { flex: 1 }]}>{p.name}</Text>
-                <Text style={s.small}>{tagName(state.tags, p.tagId) ?? ''}</Text>
+                <Text style={s.small}>{[tagName(state.tags, p.tagId), state.cloud && p.by].filter(Boolean).join('　')}</Text>
               </View>
             ))}
           </View>
