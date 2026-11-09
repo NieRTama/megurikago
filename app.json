@@ -4,13 +4,16 @@
     "slug": "megurikago",
     "version": "1.0.0",
     "orientation": "portrait",
+    "locales": {
+      "ja": "./locales/ja.json"
+    },
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.niertama.megurikago",
       "infoPlist": {
-        "CFBundleDisplayName": "めぐりかご",
+        "CFBundleDisplayName": "Megurikago",
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
