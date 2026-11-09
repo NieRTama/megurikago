@@ -50,7 +50,7 @@ export default function Shelf() {
       {query !== undefined && (
         <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="品名・メモで探す" style={[s.input, { marginHorizontal: 16, marginBottom: 12 }]} clearButtonMode="while-editing" />
       )}
-      <TagBar tags={realTags(state.tags)} value={tagId} onChange={setTagId} allLabel="すべて" style={{ flexGrow: 0, marginBottom: 4 }} />
+      <TagBar tags={realTags(state.tags)} value={tagId} onChange={setTagId} allLabel="すべて" style={{ flexGrow: 0, marginBottom: 4 }} addable />
 
       <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingBottom: 40 }}>
         {!state.items.length && (

@@ -1,5 +1,5 @@
 // 実行: node scripts/check-logic.ts （Node 22.6+ の型除去で直接動く）
-import { addDays, cycleOf, diffDays, diffShared, docJson, formatCode, fromDocs, makeCode, matchIcon, mergeFirst, mergeRemote, newPhotoNames, nextDate, noShared, normalizeCode, notifyPlan, notifySummary, parseDateInput, refresh, parseSpoken, storeKey, sharedPart, splitSpoken, validPhoto, type Item, type Purchase, type State } from '../src/logic.ts';
+import { addStore, addDays, cycleOf, diffDays, diffShared, docJson, formatCode, fromDocs, makeCode, matchIcon, mergeFirst, mergeRemote, newPhotoNames, nextDate, noShared, normalizeCode, notifyPlan, notifySummary, parseDateInput, refresh, parseSpoken, storeKey, sharedPart, splitSpoken, validPhoto, type Item, type Purchase, type State } from '../src/logic.ts';
 
 eq(addDays('2026-01-30', 3), '2026-02-02');
 eq(diffDays('2026-12-30', '2027-01-02'), 3);
@@ -200,3 +200,11 @@ eq(storeKey('ひゃっきん'), storeKey('100円ショップ'));
 eq(storeKey('薬局') === storeKey('ドラッグストア'), false);
 eq(parseSpoken('アマゾンで電池4本', ['Amazon'])[0].store, 'Amazon');
 eq(parseSpoken('らくてんで水', ['楽天'])[0].store, '楽天');
+
+// ［＋］でお店を足す: 同じお店は増やさず、一時的なお店は正式に登録し直す
+{
+  const st = { tags: [{ id: 'a', name: 'Amazon' }, { id: 't', name: 'コンビニ', temp: true }] };
+  eq(addStore(st, 'アマゾン'), [st, 'a']);
+  eq(addStore(st, 'コンビニ')[0].tags[1], { id: 't', name: 'コンビニ' });
+  eq(addStore(st, ' 薬局 ', 'n'), [{ tags: [...st.tags, { id: 'n', name: '薬局' }] }, 'n']);
+}

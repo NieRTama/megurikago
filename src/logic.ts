@@ -295,6 +295,14 @@ export function areaOrderFor(s: Settings, tagId?: string): string[] {
 /** 一時的なお店を除いたお店（棚・品の登録・お店の設定で使う） */
 export const realTags = (tags: Tag[]) => tags.filter((t) => !t.temp);
 
+/** お店を登録する。同じお店（storeKey が同じ）があればそれを使い、一時的なお店なら正式に登録し直す。登録したお店の id も返す */
+export function addStore<S extends { tags: Tag[] }>(st: S, name: string, newTagId = newId()): [S, string] {
+  const k = storeKey(name);
+  const hit = st.tags.find((t) => storeKey(t.name) === k);
+  if (hit) return [hit.temp ? { ...st, tags: st.tags.map((t) => (t === hit ? { id: t.id, name: t.name } : t)) } : st, hit.id];
+  return [{ ...st, tags: [...st.tags, { id: newTagId, name: name.trim() }] }, newTagId];
+}
+
 /**
  * prev では使われていて next で使われなくなった一時的なお店を消す。変化が無ければ next をそのまま返す。
  * 「今使われていない」だけで消さないのは、家族の端末の行（private の行は届かない・お店と行が別々に届く）を見誤って消さないため

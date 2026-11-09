@@ -67,7 +67,7 @@ export default function ShoppingList() {
           <Text style={s.link}>{byStore ? '店ごと' : '追加順'} ⇅</Text>
         </Pressable>
       </View>
-      <TagBar tags={state.tags} value={tagId} onChange={setTagId} allLabel="すべての店" style={{ flexGrow: 0 }} />
+      <TagBar tags={state.tags} value={tagId} onChange={setTagId} allLabel="すべての店" style={{ flexGrow: 0 }} addable />
 
       <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingBottom: 140 }}>
         {byStore && (
@@ -178,10 +178,10 @@ export default function ShoppingList() {
       <SafeAreaView edges={['bottom']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: C.bg, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line }}>
         <View style={[s.row, { padding: 12, gap: 10 }]}>
           <View style={{ flex: 1 }}>
-            <Button kind="ghost" label="話して追加" onPress={() => router.push('/voice')} />
+            <Button kind="ghost" label="話して追加" onPress={() => router.push(tagId ? `/voice?tag=${tagId}` : '/voice')} />
           </View>
           <View style={{ flex: 1 }}>
-            <Button label="入力して追加" onPress={() => router.push('/add')} />
+            <Button label="入力して追加" onPress={() => router.push(tagId ? `/add?tag=${tagId}` : '/add')} />
           </View>
         </View>
       </SafeAreaView>

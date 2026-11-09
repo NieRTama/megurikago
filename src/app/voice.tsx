@@ -1,10 +1,10 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { splitItems } from '../ai';
-import { newId, parseSpoken, realTags, storeKey } from '../logic';
+import { addStore, newId, parseSpoken, realTags, storeKey } from '../logic';
 import { addToList, smooth, useStore } from '../store';
-import { Button, C, Chip, s, TempBadge } from '../ui';
+import { Button, C, Chip, CloseX, s, TempBadge } from '../ui';
 
 type Speech = typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule;
 
@@ -26,6 +26,9 @@ const key = storeKey;
 /** 話して追加（下から出るシート）。開いたらすぐ聞き取り、［話し終えた］で品ごとに分けて確かめる */
 export default function VoiceSheet() {
   const { state, update } = useStore();
+  // 買うものタブで選んでいたお店。言わなかった品はこのお店にする
+  const { tag } = useLocalSearchParams<{ tag?: string }>();
+  const defStore = state.tags.find((t) => t.id === tag)?.name;
   const [speech] = useState(loadSpeech);
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,6 +42,8 @@ export default function VoiceSheet() {
   const live = useRef(false);
   const mounted = useRef(true);
   const onEnd = useRef<(text: string) => void>(undefined);
+  const retry = useRef(false); // 許可ダイアログが閉じた直後の「中断」は 1 回だけ黙ってやり直す
+  const retried = useRef(false);
 
   const real = realTags(state.tags);
   const isReal = (name: string) => real.some((t) => key(t.name) === key(name));
@@ -59,7 +64,7 @@ export default function VoiceSheet() {
         }
         smooth();
         // お店は、言ったお店を棚の品のお店より優先する（その品をそのお店で買う、と言っているため）
-        setRows((r) => [...r, ...pieces.map((p) => ({ id: newId(), on: true, name: p.name, store: p.store, memo: p.memo }))]);
+        setRows((r) => [...r, ...pieces.map((p) => ({ id: newId(), on: true, name: p.name, store: p.store ?? defStore, memo: p.memo }))]);
       } finally {
         setBusy(false);
       }
@@ -87,6 +92,7 @@ export default function VoiceSheet() {
     if (!speech) return;
     const subs = [
       speech.addListener('start', () => {
+        retry.current = false; // 前の回の終わりの後に届いた「中断」で、あとから勝手にやり直さない
         setNote(undefined);
         setListening(true);
       }),
@@ -100,6 +106,12 @@ export default function VoiceSheet() {
         setHeard(confirmed.current + spoken.current);
       }),
       speech.addListener('error', (e) => {
+        // 初回の許可ダイアログが音声セッションを中断することがある。まだ何も聞いていなければやり直す
+        if (e.error === 'interrupted' && !retried.current && !(confirmed.current + spoken.current).trim()) {
+          retried.current = true;
+          retry.current = true;
+          return;
+        }
         if (e.error === 'no-speech') setNote('聞き取れませんでした。もう一度［もう一度話す］を押してください');
         else if (e.error === 'not-allowed') setNote('マイクか音声認識が許可されていません。設定アプリで許可してください');
         else if (e.error !== 'aborted') setNote(`聞き取れませんでした（${e.message}）`);
@@ -112,6 +124,10 @@ export default function VoiceSheet() {
         spoken.current = '';
         setHeard('');
         if (text) onEnd.current?.(text);
+        else if (retry.current) {
+          retry.current = false;
+          setTimeout(() => mounted.current && listen(), 400);
+        }
       }),
     ];
     mounted.current = true;
@@ -156,9 +172,7 @@ export default function VoiceSheet() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[s.row, { padding: 16, paddingTop: 20 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={s.link}>閉じる</Text>
-        </Pressable>
+        <CloseX />
         <Text style={[s.text, { flex: 1, textAlign: 'center', fontWeight: '700' }]}>話して入れる</Text>
         <View style={{ minWidth: 40 }} />
       </View>
@@ -193,13 +207,24 @@ export default function VoiceSheet() {
                 {options.map((n) => (
                   <Chip key={n} label={isReal(n) ? n : `${n}（一時的）`} on={!!r.store && key(r.store) === key(n)} onPress={() => (patch(r.id, { store: n }), setPicking(undefined))} />
                 ))}
+                <Chip
+                  label="＋"
+                  onPress={() =>
+                    Alert.prompt('お店を追加', '例: コンビニ', (n) => {
+                      if (!n?.trim()) return;
+                      update((st) => addStore(st, n)[0]);
+                      patch(r.id, { store: n.trim() });
+                      setPicking(undefined);
+                    })
+                  }
+                />
               </ScrollView>
             )}
           </View>
         ))}
 
         <View style={[s.row, { justifyContent: 'space-between' }]}>
-          <Pressable onPress={() => (smooth(), setRows((r) => [...r, { id: newId(), on: true, name: '', memo: '' }]))} hitSlop={6}>
+          <Pressable onPress={() => (smooth(), setRows((r) => [...r, { id: newId(), on: true, name: '', store: defStore, memo: '' }]))} hitSlop={6}>
             <Text style={s.link}>＋ 品を足す</Text>
           </Pressable>
           {speech && (listening ? <Button label="話し終えた" onPress={() => speech.stop()} /> : <Button kind="ghost" label="もう一度話す" onPress={listen} disabled={busy} />)}

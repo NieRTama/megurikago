@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { areaOrderFor, newId, realTags, storeKey } from '../logic';
+import { addStore, areaOrderFor, realTags } from '../logic';
 import { useStore } from '../store';
 import { C, Chip, s, smooth } from '../ui';
 
@@ -17,13 +17,7 @@ export default function Stores() {
   const add = () => {
     const n = name.trim();
     if (!n) return;
-    // 同名の一時的なお店があれば、新しく足さずにそれを正式に登録する（全角半角・大文字小文字は区別しない）
-    const key = storeKey;
-    update((x) => {
-      const hit = x.tags.find((t) => t.temp && key(t.name) === key(n));
-      if (!hit) return { ...x, tags: [...x.tags, { id: newId(), name: n }] };
-      return { ...x, tags: x.tags.map((t) => (t === hit ? { id: t.id, name: t.name } : t)) };
-    });
+    update((x) => addStore(x, n)[0]);
     setName('');
   };
 

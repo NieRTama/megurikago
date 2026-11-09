@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'rea
 import { AREAS, newId, realTags, today, type Item } from '../../logic';
 import { nameFromPhoto } from '../../ai';
 import { deletePhoto, pastePhoto, pickPhoto, toggleIconOff, useStore } from '../../store';
-import { Button, C, Chip, hasIcon, s, TagBar, Thumb } from '../../ui';
+import { Button, C, Chip, CloseX, hasIcon, s, TagBar, Thumb } from '../../ui';
 
 const PRESETS: [string, number][] = [
   ['1週間', 7],
@@ -58,11 +58,7 @@ export default function EditItem() {
       <Stack.Screen
         options={{
           title: old ? '編集' : 'いつもの品を登録',
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8}>
-              <Text style={s.link}>やめる</Text>
-            </Pressable>
-          ),
+          headerLeft: () => <CloseX />,
           headerRight: () => (
             <Pressable onPress={save} disabled={!f.name.trim()} hitSlop={8}>
               <Text style={[s.link, !f.name.trim() && { color: C.sub }]}>保存</Text>
@@ -92,7 +88,7 @@ export default function EditItem() {
       <TextInput value={f.name} onChangeText={(name) => set({ name })} placeholder={reading ? '読み取り中…' : '例: 食器用洗剤'} style={[s.input, { marginHorizontal: 16 }]} />
 
       <Text style={s.h2}>買う店</Text>
-      <TagBar tags={realTags(state.tags)} value={f.tagId} onChange={(tagId) => set({ tagId })} allLabel="指定なし" style={{ flexGrow: 0 }} />
+      <TagBar tags={realTags(state.tags)} value={f.tagId} onChange={(tagId) => set({ tagId })} allLabel="指定なし" style={{ flexGrow: 0 }} addable />
 
       <Text style={s.h2}>売り場</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>

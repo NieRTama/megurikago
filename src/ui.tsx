@@ -1,21 +1,22 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import { ICONS } from './icons.generated';
 import { photoUri, smooth, toggleIconOff, useStore } from './store';
-import { addDays, matchIcon, parseDateInput, type Item, type Tag } from './logic';
+import { addDays, addStore, matchIcon, parseDateInput, type Item, type Tag } from './logic';
 
-// 藍と真鍮。うす墨の地に白い面、色は「主色」と「もうすぐ」の2つだけ
+// 生成りと焦げ茶。やさしいベージュの地に生成りの面、色は「主色（茶）」と「もうすぐ（えんじ）」の2つだけ
 export const C = {
-  bg: '#EDEFF2',
-  card: '#FFFFFF',
-  ink: '#1E2733',
-  sub: '#6B7480',
-  line: '#DCE0E6',
-  main: '#2C4A63',
-  mainSoft: '#E1E7EE',
-  soon: '#A9812F',
-  soonSoft: '#F3ECDD',
-  danger: '#B04A4A',
+  bg: '#F2ECE1',
+  card: '#FBF8F2',
+  ink: '#3A3128',
+  sub: '#8C8174',
+  line: '#E3DACB',
+  main: '#7A5B40',
+  mainSoft: '#ECE2D3',
+  soon: '#9E3D33',
+  soonSoft: '#F3E1DA',
+  danger: '#9E3D33',
 };
 
 export { smooth };
@@ -48,19 +49,33 @@ export function TagBar({
   onChange,
   allLabel,
   style,
+  addable,
 }: {
   tags: Tag[];
   value?: string;
   onChange: (id?: string) => void;
   allLabel: string;
   style?: StyleProp<ViewStyle>;
+  /** 最後に［＋］を出し、お店を登録して選ぶ */
+  addable?: boolean;
 }) {
+  const { state, update } = useStore();
+  const add = () =>
+    Alert.prompt('お店を追加', '例: コンビニ', (n) => {
+      if (!n?.trim()) return;
+      // 同じお店があればそれを選ぶ。新しい id は先に決めて、更新と選択で同じものを使う
+      const [, id] = addStore(state, n);
+      update((st) => addStore(st, n, id)[0]);
+      smooth();
+      onChange(id);
+    });
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={style} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
       <Chip label={allLabel} on={!value} onPress={() => onChange(undefined)} />
       {tags.map((t) => (
         <Chip key={t.id} label={t.name} on={value === t.id} onPress={() => onChange(value === t.id ? undefined : t.id)} />
       ))}
+      {addable && <Chip label="＋" onPress={add} />}
     </ScrollView>
   );
 }
@@ -156,6 +171,15 @@ export function askDate(title: string, todayStr: string, onPick: (date: string) 
   ]);
 }
 
+/** シートを閉じる ✕ */
+export function CloseX({ onPress = () => router.back() }: { onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel="閉じる" style={(st) => [{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.mainSoft, alignItems: 'center', justifyContent: 'center' }, press(st)]}>
+      <Text style={{ fontSize: 15, color: C.ink, fontWeight: '600' }}>✕</Text>
+    </Pressable>
+  );
+}
+
 /** 一時的なお店の札（点線）。音声で言った、登録していないお店 */
 export function TempBadge() {
   return (
@@ -183,7 +207,7 @@ export const s = StyleSheet.create({
   chipOn: { backgroundColor: C.ink, borderColor: C.ink },
   chipText: { fontSize: 14, color: C.ink },
   chipTextOn: { color: '#fff', fontWeight: '600' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(30,39,51,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(58,49,40,0.55)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   zoomCard: { backgroundColor: C.card, borderRadius: 20, padding: 20, alignItems: 'center', gap: 8, alignSelf: 'stretch' },
   initial: { backgroundColor: C.mainSoft, alignItems: 'center', justifyContent: 'center' },
   btn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center' },

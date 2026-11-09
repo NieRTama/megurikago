@@ -1,9 +1,9 @@
-import { router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { newId, realTags, type ListEntry } from '../logic';
 import { addToList, removeEntry, useStore } from '../store';
-import { Button, C, s, smooth, TagBar, tagName } from '../ui';
+import { Button, C, CloseX, s, smooth, TagBar, tagName } from '../ui';
 
 type Draft = Pick<ListEntry, 'id' | 'name' | 'tagId' | 'memo' | 'itemId'>;
 
@@ -12,7 +12,8 @@ export default function AddSheet() {
   const { state, update } = useStore();
   const [name, setName] = useState('');
   const [memo, setMemo] = useState<string>();
-  const [tagId, setTagId] = useState<string>();
+  const { tag } = useLocalSearchParams<{ tag?: string }>();
+  const [tagId, setTagId] = useState<string | undefined>(tag); // 買うものタブで選んでいたお店
   const [added, setAdded] = useState<Draft[]>([]);
   const [undone, setUndone] = useState<Draft>();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
@@ -42,9 +43,7 @@ export default function AddSheet() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[s.row, { padding: 16, paddingTop: 20 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={s.link}>閉じる</Text>
-        </Pressable>
+        <CloseX />
         <Text style={[s.text, { flex: 1, textAlign: 'center', fontWeight: '700' }]}>買うものを入れる</Text>
         <Text style={[s.small, { minWidth: 60, textAlign: 'right' }]}>{added.length ? `${added.length}品 追加` : ''}</Text>
       </View>
@@ -73,7 +72,7 @@ export default function AddSheet() {
       </ScrollView>
 
       <View style={{ paddingVertical: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line, backgroundColor: C.card }}>
-        <TagBar tags={realTags(state.tags)} value={tagId} onChange={setTagId} allLabel="店の指定なし" style={{ flexGrow: 0 }} />
+        <TagBar tags={realTags(state.tags)} value={tagId} onChange={setTagId} allLabel="店の指定なし" style={{ flexGrow: 0 }} addable />
         <View style={{ paddingHorizontal: 16, gap: 8 }}>
           <View style={s.row}>
             <TextInput
