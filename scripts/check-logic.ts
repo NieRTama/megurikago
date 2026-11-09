@@ -1,5 +1,5 @@
 // 実行: node scripts/check-logic.ts （Node 22.6+ の型除去で直接動く）
-import { addDays, cycleOf, diffDays, diffShared, docJson, formatCode, fromDocs, makeCode, matchIcon, mergeFirst, mergeRemote, newPhotoNames, nextDate, noShared, normalizeCode, notifyPlan, notifySummary, parseDateInput, refresh, sharedPart, splitSpoken, validPhoto, type Item, type Purchase, type State } from '../src/logic.ts';
+import { addDays, cycleOf, diffDays, diffShared, docJson, formatCode, fromDocs, makeCode, matchIcon, mergeFirst, mergeRemote, newPhotoNames, nextDate, noShared, normalizeCode, notifyPlan, notifySummary, parseDateInput, refresh, parseSpoken, storeKey, sharedPart, splitSpoken, validPhoto, type Item, type Purchase, type State } from '../src/logic.ts';
 
 eq(addDays('2026-01-30', 3), '2026-02-02');
 eq(diffDays('2026-12-30', '2027-01-02'), 3);
@@ -27,7 +27,7 @@ const state: State = {
   list: [],
   purchases: [],
   tags: [],
-  settings: { notify: true, notifyDaysBefore: 7, notifyHour: 9, autoAdd: false, superUrl: '', checkHintShown: false, aiPhoto: false, aiVoice: false, iconOff: [], shelfView: 'cutout' },
+  settings: { notify: true, notifyDaysBefore: 7, notifyHour: 9, autoAdd: false, superUrl: '', checkHintShown: false, aiPhoto: false, aiVoice: false, iconOff: [], shelfView: 'cutout', showPics: true, byArea: false, areaHintShown: false, areaOrder: {} },
 };
 // 牛乳: 次回 10/15 → 通知日は過ぎているので今日。洗剤: 次回 11/15 → 11/8
 eq(notifyPlan(state, '2026-11-02', 8), [
@@ -56,6 +56,30 @@ eq(matchIcon('牛乳', icons), undefined);
 eq(splitSpoken('牛乳と卵、それとトイレットペーパー'), ['牛乳と卵', 'トイレットペーパー']);
 eq(splitSpoken('トマト 卵あとパン。洗剤,ラップ'), ['トマト', '卵', 'パン', '洗剤', 'ラップ']);
 eq(splitSpoken('  、 '), []);
+
+// 話した文の解析: お店は登録済み/よくある店の言葉のときだけ。「2本と」で切り、トマト・牛乳と卵は切らない
+eq(parseSpoken('スーパーで牛乳2本と卵2個 ドラッグストアで電池を二箇', []), [
+  { name: '牛乳', store: 'スーパー', memo: '2本' },
+  { name: '卵', store: 'スーパー', memo: '2個' },
+  { name: '電池', store: 'ドラッグストア', memo: '2個' },
+]);
+eq(parseSpoken('牛乳と卵とパン', []), [{ name: '牛乳', memo: '' }, { name: '卵', memo: '' }, { name: 'パン', memo: '' }]);
+eq(parseSpoken('トマトとパン', []), [{ name: 'トマト', memo: '' }, { name: 'パン', memo: '' }]);
+eq(parseSpoken('トマト3個', []), [{ name: 'トマト', memo: '3個' }]);
+eq(parseSpoken('トマト3個と十個パック', []), [{ name: 'トマト', memo: '3個' }, { name: '十個パック', memo: '' }]);
+eq(parseSpoken('三つ葉', []), [{ name: '三つ葉', memo: '' }]);
+eq(parseSpoken('八丁味噌', []), [{ name: '八丁味噌', memo: '' }]);
+eq(parseSpoken('卵十個パック', []), [{ name: '卵十個パック', memo: '' }]);
+eq(parseSpoken('豆腐とうどん', []), [{ name: '豆腐とうどん', memo: '' }]);
+eq(parseSpoken('コンビニでおにぎり2つ', []), [{ name: 'おにぎり', store: 'コンビニ', memo: '2つ' }]);
+eq(parseSpoken('ティッシュ5箱とトイレットペーパー', []), [{ name: 'ティッシュ', memo: '5箱' }, { name: 'トイレットペーパー', memo: '' }]);
+eq(parseSpoken('薬局で目薬を一つ', []), [{ name: '目薬', store: '薬局', memo: '1つ' }]);
+eq(parseSpoken('卵をふたつ', []), [{ name: '卵', memo: '2個' }]);
+eq(parseSpoken('アマゾンで電池', []), [{ name: '電池', store: 'アマゾン', memo: '' }]);
+eq(parseSpoken('ｍｙ店で洗剤を一つ、ごみ袋', ['My店']), [{ name: '洗剤', store: 'My店', memo: '1つ' }, { name: 'ごみ袋', store: 'My店', memo: '' }]);
+eq(parseSpoken('ダイソーでノート', []), [{ name: 'ダイソーでノート', memo: '' }]); // 未登録の店は切らない
+eq(parseSpoken('牛乳 2本 卵', []), [{ name: '牛乳', memo: '2本' }, { name: '卵', memo: '' }]);
+eq(parseSpoken('', []), []);
 
 // 通知の要約文: 通知オン/オフ × 自動追加 × 許可、0日前
 const sm = state.settings;
@@ -169,3 +193,10 @@ console.log('check-logic: ok');
 function eq(a: unknown, b: unknown) {
   if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`期待 ${JSON.stringify(b)} / 実際 ${JSON.stringify(a)}`);
 }
+
+// お店の呼び方の違い: 登録が「Amazon」なら「アマゾンで」もそのお店
+eq(storeKey('アマゾン'), storeKey('Amazon'));
+eq(storeKey('ひゃっきん'), storeKey('100円ショップ'));
+eq(storeKey('薬局') === storeKey('ドラッグストア'), false);
+eq(parseSpoken('アマゾンで電池4本', ['Amazon'])[0].store, 'Amazon');
+eq(parseSpoken('らくてんで水', ['楽天'])[0].store, '楽天');

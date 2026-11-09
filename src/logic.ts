@@ -1,6 +1,7 @@
 // 純粋な関数だけを置く（scripts/check-logic.ts から node で直接実行するため、enum など型以外の TS 構文は使わない）
 
-export type Tag = { id: string; name: string };
+/** temp: 音声で言った、登録していないお店。買い物リストにだけ出て、その店の行が無くなると消える（dropTempTags） */
+export type Tag = { id: string; name: string; temp?: boolean };
 
 /** 定期購入品 */
 export type Item = {
@@ -20,6 +21,8 @@ export type Item = {
   autoAddedFor?: string;
   /** true: この端末だけの品（家族に共有しない）。既定は共有 */
   private?: boolean;
+  /** 売り場（AREAS のどれか）。無ければ品名から推す（areaOf） */
+  area?: string;
 };
 
 export type Purchase = {
@@ -64,6 +67,14 @@ export type Settings = {
   iconOff: string[];
   /** 写真つきの品の見せ方: 切り抜き / 元の写真 */
   shelfView: 'cutout' | 'photo';
+  /** false: 品の絵（写真・いらすとや）を出さず、品名の頭文字の札にする */
+  showPics: boolean;
+  /** 買い物リストを売り場ごとに分けて並べる */
+  byArea: boolean;
+  /** 売り場順を初めてオンにしたときの案内を出した */
+  areaHintShown: boolean;
+  /** お店（tagId）ごとの売り場の並び。無いお店は AREAS の順（この端末だけ） */
+  areaOrder: Record<string, string[]>;
 };
 
 export type State = {
@@ -172,12 +183,80 @@ export function refresh(s: State, todayStr: string): State {
       return { ...item, autoAddedFor: next };
     });
   }
-  return list === s.list && items === s.items ? s : { ...s, list, items };
+  return dropTempTags(s, list === s.list && items === s.items ? s : { ...s, list, items });
 }
 
 /** 話した文を品ごとに分ける（「、。,」・空白・「それと」「あと」で区切る。単独の「と」では区切らない: トマト・牛乳と卵） */
 export const splitSpoken = (text: string): string[] =>
   text.split(/[、。,，\s]+|それと|あと/).map((x) => x.trim()).filter(Boolean);
+
+const QTY_UNITS = '本|個|箇|ヶ|パック|袋|枚|缶|箱|つ|セット|台|冊|足|束|玉|丁|瓶|ケース|ロール|キロ|リットル|グラム';
+// 音声認識が出しがちな読み（アマゾン・らくてん・ひゃっきん）も入れる
+const SPOKEN_STORES = ['スーパー', 'ドラッグストア', 'ドラッグ', '薬局', 'コンビニ', '100円ショップ', '100円均一', '100均', '百円ショップ', '百均', 'ひゃっきん', 'ひゃっきんしょっぷ', 'ホームセンター', 'Amazon', 'アマゾン', 'あまぞん', '楽天', '楽天市場', 'らくてん', 'ネット'];
+const KANJI_DIGIT: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+/** 漢数字（一〜九十九）を算用数字の文字列へ。算用数字はそのまま */
+const kanjiNum = (n: string) => {
+  if (!n.includes('十')) return [...n].map((c) => KANJI_DIGIT[c] ?? c).join('');
+  const [a, b] = n.split('十');
+  return String((a ? KANJI_DIGIT[a] : 1) * 10 + (b ? KANJI_DIGIT[b] : 0));
+};
+
+// 「ひとつ」〜「とお」は 1個〜10個 にする（1つ…10つ は不自然）
+const HIRA_QTY: Record<string, string> = { ひとつ: '1個', ふたつ: '2個', みっつ: '3個', よっつ: '4個', いつつ: '5個', むっつ: '6個', ななつ: '7個', やっつ: '8個', ここのつ: '9個', とお: '10個' };
+const TAIL_QTY = new RegExp(`^(.*?)([0-9一二三四五六七八九十]+(?:${QTY_UNITS})|${Object.keys(HIRA_QTY).join('|')})を?$`);
+
+/**
+ * 話した文を 品名・お店・メモ(数量) に分ける（AI オフ・失敗時用）。
+ * 「〇〇で」は〇〇が登録済みのお店かよくある店の言葉のときだけお店とし、以降の品に引き継ぐ。
+ * 「と」で区切るのは、数量のあと（2本と）か、漢字・カタカナ・数字・英字のあとの「と」（牛乳と卵）。
+ * カタカナの「ト」（トマト）と「とう」（とうふ）は切らない。
+ * 数量は区切りの末尾にあるときだけ（三つ葉・八丁味噌・卵十個パックは品名のまま）。漢数字は算用数字、「箇」は「個」に
+ */
+// 同じお店の呼び方の違い（読み・英字・略称）。storeKey がこの代表名にそろえる
+const STORE_ALIASES: string[][] = [
+  ['amazon', 'あまぞん', 'あまぞんどっとこむ'],
+  ['楽天', '楽天市場', 'らくてん', 'らくてんいちば', 'rakuten'],
+  ['100円ショップ', '100円均一', '100均', '百円ショップ', '百均', 'ひゃっきん', 'ひゃっきんしょっぷ', 'ひゃくえんしょっぷ'],
+  ['ドラッグストア', 'ドラッグ', 'どらっぐすとあ', 'どらっぐ'],
+  ['コストコ', 'costco'],
+  ['イオン', 'aeon'],
+];
+const kana = (t: string) => t.normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const ALIAS = new Map(STORE_ALIASES.flatMap((g) => g.map((w) => [kana(w), kana(g[0])] as [string, string])));
+/** お店の名前を比べるためのキー。全角半角・大小・カタカナひらがな・呼び方の違い（アマゾン＝Amazon など）をそろえる */
+export const storeKey = (name: string) => {
+  const k = kana(name.trim());
+  return ALIAS.get(k) ?? k;
+};
+
+export function parseSpoken(text: string, storeNames: string[]): { name: string; store?: string; memo: string }[] {
+  const key = storeKey;
+  const stores = [...storeNames, ...SPOKEN_STORES].map(key);
+  const chunks = text
+    .normalize('NFKC')
+    .split(/[、。,，\s]+|それと|あと|(?<=[一-龥ァ-ヿA-Za-z0-9つ])と(?!う)/)
+    .map((x) => x?.trim())
+    .filter(Boolean);
+  const out: { name: string; store?: string; memo: string }[] = [];
+  let store: string | undefined;
+  for (const chunk of chunks) {
+    let body = chunk;
+    for (let i = body.indexOf('で'); i > 0; i = body.indexOf('で', i + 1)) {
+      const spoken = body.slice(0, i);
+      if (!stores.includes(key(spoken))) continue;
+      store = storeNames.find((n) => key(n) === key(spoken)) ?? spoken;
+      body = body.slice(i + 1);
+      break;
+    }
+    const m = body.match(TAIL_QTY);
+    const q = m?.[2] ?? '';
+    const qty = HIRA_QTY[q] ?? q.replace(/^([0-9一二三四五六七八九十]+)(.+)$/, (_, n: string, u: string) => kanjiNum(n) + (u === '箇' || u === 'ヶ' ? '個' : u));
+    const name = (m ? m[1] : body).replace(/を$/, '').trim();
+    if (name) out.push({ name, ...(store ? { store } : {}), memo: qty });
+    else if (qty && out.length && !out[out.length - 1].memo) out[out.length - 1].memo = qty; // 「牛乳 2本」と間があいた数量
+  }
+  return out;
+}
 
 /** 「わたし」タブのお知らせ設定の要約文。allowed=false は iPhone 側で通知が止まっている */
 export function notifySummary(s: Settings, allowed: boolean): string {
@@ -185,6 +264,47 @@ export function notifySummary(s: Settings, allowed: boolean): string {
   if (!s.notify) return `通知はオフです。${s.autoAdd ? auto : '近づいた品は棚の日数で確かめてください。'}`;
   const when = s.notifyDaysBefore ? `買う日の ${s.notifyDaysBefore} 日前` : '買う日の当日';
   return `${when}の ${s.notifyHour} 時ごろにお知らせします。${auto}${allowed ? '' : 'iPhone の設定で通知が止まっています。'}`;
+}
+
+// ---- 売り場（買い物リストの「売り場順」） ----
+
+export const AREAS = ['野菜・果物', '肉・魚', '卵・乳製品', 'パン・米・麺', '調味料', '飲み物', 'お菓子', '冷凍食品', '日用品・洗剤', '薬・衛生用品', 'その他'];
+const AREA_WORDS: [string[], string][] = [
+  [['野菜', 'キャベツ', 'レタス', 'トマト', 'きゅうり', '玉ねぎ', 'たまねぎ', 'にんじん', 'じゃがいも', 'ねぎ', 'もやし', 'ほうれん草', '果物', 'バナナ', 'りんご', 'みかん', 'いちご'], '野菜・果物'],
+  [['肉', '豚', '鶏', 'ハム', 'ベーコン', 'ソーセージ', 'ウインナー', '魚', '鮭', 'さけ', '刺身', 'ツナ'], '肉・魚'],
+  [['卵', 'たまご', '牛乳', 'ミルク', 'ヨーグルト', 'チーズ', 'バター', '豆腐', '納豆'], '卵・乳製品'],
+  [['パン', '米', 'ごはん', 'パスタ', 'うどん', 'そば', 'ラーメン', '麺', 'シリアル'], 'パン・米・麺'],
+  [['醤油', 'しょうゆ', '味噌', 'みそ', '砂糖', '塩', '酢', '油', 'マヨネーズ', 'ケチャップ', 'ソース', 'だし', '小麦粉'], '調味料'],
+  [['水', 'お茶', '茶', 'コーヒー', 'ジュース', 'ビール', '酒', '炭酸'], '飲み物'],
+  [['お菓子', 'チョコ', 'ポテトチップス', 'クッキー', 'アイス', 'ガム'], 'お菓子'],
+  [['冷凍'], '冷凍食品'],
+  [['洗剤', '柔軟剤', 'ティッシュ', 'トイレットペーパー', 'キッチンペーパー', 'ラップ', 'ゴミ袋', 'スポンジ', 'シャンプー', 'リンス', 'コンディショナー', 'ボディソープ', '石鹸', 'せっけん', '歯ブラシ', '歯磨き', '電池', '電球'], '日用品・洗剤'],
+  [['薬', 'マスク', '絆創膏', '目薬', '生理用品', 'ナプキン', 'おむつ', '綿棒'], '薬・衛生用品'],
+];
+
+/** 品の売り場。品に決めてあればそれ、無ければ品名から推す（いちばん長く一致した言葉）。分からなければ「その他」 */
+export const areaOf = (name: string, item?: Item) => (item?.area && AREAS.includes(item.area) ? item.area : matchIcon(name, AREA_WORDS) ?? 'その他');
+
+/** お店ごとの売り場の並び（保存した並び + 足りない売り場を後ろに） */
+export function areaOrderFor(s: Settings, tagId?: string): string[] {
+  const saved = (tagId && s.areaOrder[tagId]) || [];
+  const head = saved.filter((a) => AREAS.includes(a));
+  return [...head, ...AREAS.filter((a) => !head.includes(a))];
+}
+
+/** 一時的なお店を除いたお店（棚・品の登録・お店の設定で使う） */
+export const realTags = (tags: Tag[]) => tags.filter((t) => !t.temp);
+
+/**
+ * prev では使われていて next で使われなくなった一時的なお店を消す。変化が無ければ next をそのまま返す。
+ * 「今使われていない」だけで消さないのは、家族の端末の行（private の行は届かない・お店と行が別々に届く）を見誤って消さないため
+ */
+export function dropTempTags(prev: State, next: State): State {
+  const usedIn = (x: State) => new Set([...x.list, ...x.items].map((e) => e.tagId));
+  const before = usedIn(prev);
+  const now = usedIn(next);
+  const tags = next.tags.filter((t) => !t.temp || !before.has(t.id) || now.has(t.id));
+  return tags.length === next.tags.length ? next : { ...next, tags };
 }
 
 // ---- 品名からアイコンを選ぶ（全角半角・カタカナひらがなをそろえ、いちばん長く一致した言葉を採る） ----
@@ -271,7 +391,7 @@ export function fromDocs(d: Record<Col, Doc[]>): Shared {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)),
     list: rows<ListEntry>('list').sort((a, b) => a.addedAt - b.addedAt),
     purchases: rows<Purchase>('purchases').sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)),
-    tags: [...d.tags].sort((a, b) => Number(a.data.o) - Number(b.data.o)).map((x) => ({ id: x.id, name: String(x.data.name) })),
+    tags: [...d.tags].sort((a, b) => Number(a.data.o) - Number(b.data.o)).map((x) => ({ id: x.id, name: String(x.data.name), ...(x.data.temp === true ? { temp: true } : {}) })),
   };
 }
 
@@ -304,7 +424,7 @@ export function mergeFirst(s: State, remote: Shared, synced: Map<string, string>
   const dec = (k: string) => decide(L.get(k), R.get(k), synced.get(k));
   const remap = new Map<string, string>();
   for (const t of s.tags) {
-    const r = remote.tags.find((x) => x.name === t.name);
+    const r = remote.tags.find((x) => x.name === t.name && !x.temp && !t.temp);
     if (r && r.id !== t.id) remap.set(t.id, r.id);
   }
   const mapTag = <T extends { tagId?: string }>(x: T): T => (x.tagId && remap.has(x.tagId) ? { ...x, tagId: remap.get(x.tagId) } : x);

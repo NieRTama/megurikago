@@ -15,7 +15,11 @@ export default function RootLayout() {
         <Stack.Screen name="item/[id]" options={{ title: '' }} />
         <Stack.Screen name="item/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add" options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: [0.9], sheetGrabberVisible: true }} />
+        <Stack.Screen name="voice" options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: [0.9], sheetGrabberVisible: true }} />
         <Stack.Screen name="history" options={{ title: '購入履歴' }} />
+        <Stack.Screen name="stores" options={{ title: 'お店と売り場の順' }} />
+        <Stack.Screen name="notify" options={{ title: '通知' }} />
+        <Stack.Screen name="net" options={{ title: 'ネットで探す' }} />
         <Stack.Screen name="ai" options={{ title: 'AI の利用' }} />
         <Stack.Screen name="share" options={{ title: '家族と共有・バックアップ' }} />
         <Stack.Screen name="help" options={{ title: '使い方' }} />

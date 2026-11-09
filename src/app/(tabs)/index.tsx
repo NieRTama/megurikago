@@ -2,7 +2,7 @@ import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { cycleOf, diffDays, inList, nextDate, SOON_DAYS, type Item } from '../../logic';
+import { cycleOf, diffDays, inList, nextDate, realTags, SOON_DAYS, type Item } from '../../logic';
 import { addToList, useStore } from '../../store';
 import { C, press, RhythmBar, s, smooth, TagBar, Thumb } from '../../ui';
 
@@ -50,9 +50,9 @@ export default function Shelf() {
       {query !== undefined && (
         <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="品名・メモで探す" style={[s.input, { marginHorizontal: 16, marginBottom: 12 }]} clearButtonMode="while-editing" />
       )}
-      <TagBar tags={state.tags} value={tagId} onChange={setTagId} allLabel="すべて" style={{ flexGrow: 0, marginBottom: 4 }} />
+      <TagBar tags={realTags(state.tags)} value={tagId} onChange={setTagId} allLabel="すべて" style={{ flexGrow: 0, marginBottom: 4 }} />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingBottom: 40 }}>
         {!state.items.length && (
           <View style={[s.card, { marginTop: 24, gap: 8 }]}>
             <Text style={s.text}>くり返し買う日用品を登録しましょう。</Text>

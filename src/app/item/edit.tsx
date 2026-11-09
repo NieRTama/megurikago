@@ -1,7 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
-import { newId, today, type Item } from '../../logic';
+import { AREAS, newId, realTags, today, type Item } from '../../logic';
 import { nameFromPhoto } from '../../ai';
 import { deletePhoto, pastePhoto, pickPhoto, toggleIconOff, useStore } from '../../store';
 import { Button, C, Chip, hasIcon, s, TagBar, Thumb } from '../../ui';
@@ -54,7 +54,7 @@ export default function EditItem() {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 60, gap: 4 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingBottom: 60, gap: 4 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       <Stack.Screen
         options={{
           title: old ? '編集' : 'いつもの品を登録',
@@ -92,7 +92,16 @@ export default function EditItem() {
       <TextInput value={f.name} onChangeText={(name) => set({ name })} placeholder={reading ? '読み取り中…' : '例: 食器用洗剤'} style={[s.input, { marginHorizontal: 16 }]} />
 
       <Text style={s.h2}>買う店</Text>
-      <TagBar tags={state.tags} value={f.tagId} onChange={(tagId) => set({ tagId })} allLabel="指定なし" style={{ flexGrow: 0 }} />
+      <TagBar tags={realTags(state.tags)} value={f.tagId} onChange={(tagId) => set({ tagId })} allLabel="指定なし" style={{ flexGrow: 0 }} />
+
+      <Text style={s.h2}>売り場</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+        <Chip label="おまかせ" on={!f.area} onPress={() => set({ area: undefined })} />
+        {AREAS.map((a) => (
+          <Chip key={a} label={a} on={f.area === a} onPress={() => set({ area: a })} />
+        ))}
+      </ScrollView>
+      <Text style={[s.small, { paddingHorizontal: 16, marginTop: 6 }]}>「おまかせ」は品名から推します。リストを売り場順にするときに使います。</Text>
 
       <Text style={s.h2}>だいたい何日ごとに買う？</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16 }}>
@@ -110,7 +119,7 @@ export default function EditItem() {
         <Text style={s.text}>日ごと</Text>
       </View>
       <Text style={[s.small, { paddingHorizontal: 16, marginTop: 6 }]}>2回以上買うと、実際の間隔から自動で計算します。</Text>
-      <Pressable onPress={() => router.navigate('/me')} style={{ paddingHorizontal: 16, marginTop: 6 }}>
+      <Pressable onPress={() => router.push('/notify')} style={{ paddingHorizontal: 16, marginTop: 6 }}>
         <Text style={s.link}>通知の設定を開く ›</Text>
       </Pressable>
 

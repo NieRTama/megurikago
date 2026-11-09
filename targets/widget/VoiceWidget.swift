@@ -32,7 +32,7 @@ struct VoiceView: View {
         }
       }
     }
-    .widgetURL(URL(string: "megurikago://add?voice=1"))
+    .widgetURL(URL(string: "megurikago://voice"))
     .megurikagoBackground(.mgPaper)
   }
 }

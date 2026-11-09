@@ -23,8 +23,8 @@ const TOPICS: Topic[] = [
   },
   {
     q: '音声で入れる',
-    a: '「買うものを入れる」画面の［話す］を押して、「牛乳と卵、それとトイレットペーパー」のように話します。止めると品ごとに分けて、そのままリストに入ります。間違えた品は［取り消す］で戻せます。声は端末の中で文字になり、文字だけが AI の設定に従って使われます。',
-    to: ['話して入れてみる', '/add?voice=1'],
+    a: '買い物リストの［話して追加］を押すと、すぐ聞き取りが始まります。「スーパーで牛乳2本と卵2個、ドラッグストアで電池」のように話し、終わったら［話し終えた］を押します。品名・お店・メモに分けるので、確かめて［追加］します。登録にないお店は「一時的」なお店になります。声は端末の中で文字になり、文字だけが AI の設定に従って使われます。',
+    to: ['話して入れてみる', '/voice'],
   },
   {
     q: '通知',
@@ -63,7 +63,7 @@ const TOPICS: Topic[] = [
 export default function Help() {
   const [open, setOpen] = useState<number>();
   return (
-    <ScrollView contentContainerStyle={{ paddingVertical: 12, paddingBottom: 48, gap: 8 }}>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingVertical: 12, paddingBottom: 48, gap: 8 }}>
       {TOPICS.map((t, i) => (
         <View key={t.q} style={[s.card, { paddingVertical: 4 }]}>
           <Pressable

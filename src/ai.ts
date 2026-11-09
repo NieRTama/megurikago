@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { splitSpoken } from './logic';
+import { parseSpoken } from './logic';
 
 // Gemini の API キーはこの端末の SecureStore にだけ置く（state・バックアップ・ログには入れない）
 const MODEL = 'gemini-flash-latest';
@@ -11,11 +11,11 @@ export const setKey = (key: string) => (key ? SecureStore.setItemAsync(KEY_NAME,
 
 /** Gemini に聞いて JSON を受け取る。キー無し・通信失敗・形式違いはすべて undefined（投げない） */
 async function ask(parts: object[]): Promise<Record<string, unknown> | undefined> {
-  const key = await getKey();
-  if (!key) return;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 15000);
   try {
+    const key = await getKey();
+    if (!key) return;
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
@@ -43,9 +43,24 @@ export async function nameFromPhoto(base64Jpeg: string, enabled: boolean): Promi
   return typeof r?.name === 'string' ? r.name.trim() || undefined : undefined;
 }
 
-/** 話した文字を品ごとに分ける。enabled=false・キー無し・失敗のときは端末内の splitSpoken で分ける */
-export async function splitItems(text: string, enabled: boolean): Promise<string[]> {
-  const r = enabled ? await ask([{ text: `買い物の品を話した文章を、品ごとに分けてください。品名だけにして、数量や「と」「や」は取り除きます。{ "items": string[] } の JSON だけを返します。\n文章: ${text}` }]) : undefined;
-  const items = Array.isArray(r?.items) ? r.items.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : [];
-  return items.length ? items : splitSpoken(text);
+/** 話した文を 品名・お店・メモ(数量) に分ける。enabled=false・キー無し・空・失敗のときは端末内の parseSpoken で分ける */
+export async function splitItems(text: string, enabled: boolean, storeNames: string[]): Promise<{ name: string; store?: string; memo: string }[]> {
+  const prompt = `買い物の品を話した文章を、品ごとに 品名・お店・メモ に分けてください。
+- 品名: 品の名前だけ（数量・助詞「を」「と」は取り除く）
+- お店: 「〇〇で」と言ったお店（以降の品にも続く）。言っていなければ空文字
+- メモ: 数量（漢数字は算用数字に、「箇」は「個」に）。無ければ空文字
+登録済みのお店: ${storeNames.join('、') || 'なし'}
+言ったお店が登録済みのお店と同じなら登録済みの名前で答えます。登録に無いお店は、言ったとおりの名前のまま答えます。
+{ "items": [{ "name": string, "store": string, "memo": string }] } の JSON だけを返します。
+文章: ${text}`;
+  const r = enabled ? await ask([{ text: prompt }]) : undefined;
+  const items = Array.isArray(r?.items)
+    ? (r.items as unknown[]).flatMap((x) => {
+        const o = x as { name?: unknown; store?: unknown; memo?: unknown };
+        const name = typeof o?.name === 'string' ? o.name.trim() : '';
+        const store = typeof o?.store === 'string' ? o.store.trim() : '';
+        return name ? [{ name, ...(store ? { store } : {}), memo: typeof o.memo === 'string' ? o.memo.trim() : '' }] : [];
+      })
+    : [];
+  return items.length ? items : parseSpoken(text, storeNames);
 }

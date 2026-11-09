@@ -71,9 +71,15 @@ export const hasIcon = (name: string) => !!matchIcon(name, ICONS);
 /** 写真 → 品名に合ういらすとや（外した品を除く） → 頭文字。切り抜き（.png）といらすとやは余白をとって収める。棚を「元の写真」にしていれば photoOrig を優先 */
 export function Thumb({ item, name, size }: { item?: Item; name: string; size: number }) {
   const { state, tick } = useStore();
-  const { iconOff, shelfView } = state.settings;
+  const { iconOff, shelfView, showPics } = state.settings;
   const key = item?.name ?? name; // 外したアイコンの照合キー。棚・リスト・拡大で同じ品は同じキーにする
   const style = { width: size, height: size, borderRadius: size * 0.28 };
+  if (showPics === false)
+    return (
+      <View style={[style, s.initial]}>
+        <Text style={{ fontSize: size * 0.4, color: C.main, fontWeight: '300' }}>{name.slice(0, 1)}</Text>
+      </View>
+    );
   const shown = item?.photo && shelfView === 'photo' && item.photoOrig ? item.photoOrig : item?.photo;
   if (shown && !shown.endsWith('.png')) return <Image key={tick} source={{ uri: photoUri(shown) }} style={style} />;
   const icon = shown ? { uri: photoUri(shown) } : iconOff.includes(key.trim()) ? undefined : matchIcon(key, ICONS);
@@ -148,6 +154,15 @@ export function askDate(title: string, todayStr: string, onPick: (date: string) 
     },
     { text: 'やめる', style: 'cancel' },
   ]);
+}
+
+/** 一時的なお店の札（点線）。音声で言った、登録していないお店 */
+export function TempBadge() {
+  return (
+    <View style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: C.sub, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
+      <Text style={{ fontSize: 11, color: C.sub }}>一時的</Text>
+    </View>
+  );
 }
 
 export const tagName = (tags: Tag[], id?: string) => tags.find((t) => t.id === id)?.name;

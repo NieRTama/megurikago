@@ -7,7 +7,7 @@ import WidgetKit
 struct VoiceControl: ControlWidget {
   var body: some ControlWidgetConfiguration {
     StaticControlConfiguration(kind: "MegurikagoVoiceControl") {
-      ControlWidgetButton(action: OpenURLIntent(URL(string: "megurikago://add?voice=1")!)) {
+      ControlWidgetButton(action: OpenURLIntent(URL(string: "megurikago://voice")!)) {
         Label("話して入れる", systemImage: "mic.fill")
       }
     }

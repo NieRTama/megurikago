@@ -37,7 +37,7 @@ export default function AiSettings() {
     ]);
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       <Text style={s.h2}>写真から品名</Text>
       <View style={[s.card, { gap: 6 }]}>
         <View style={s.row}>

@@ -28,7 +28,7 @@ export default function ShareScreen() {
 
   if (!configured) {
     return (
-      <ScrollView contentContainerStyle={{ paddingVertical: 12 }}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingVertical: 12 }}>
         <View style={[s.card, { gap: 6 }]}>
           <Text style={[s.text, { fontWeight: '700' }]}>この版では使えません</Text>
           <Text style={s.small}>家族共有とクラウド保存は、Firebase の設定を入れてビルドした版でだけ使えます。ほかの機能はふつうに使えます。バックアップは「わたし」タブの［データを書き出す］で取れます。</Text>
@@ -119,7 +119,7 @@ export default function ShareScreen() {
 
   if (cloud) {
     return (
-      <ScrollView contentContainerStyle={{ paddingVertical: 12, paddingBottom: 48 }}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingVertical: 12, paddingBottom: 48 }}>
         <View style={[s.card, { alignItems: 'center', gap: 10 }]}>
           <Text style={s.small}>家族コード</Text>
           <Text selectable style={[s.num, { fontSize: 34, fontWeight: '300', letterSpacing: 2, color: C.ink }]}>
@@ -164,7 +164,7 @@ export default function ShareScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ paddingVertical: 12, paddingBottom: 48 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingVertical: 12, paddingBottom: 48 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       <View style={[s.card, { gap: 8 }]}>
         <Text style={s.text}>家族グループに入ると、棚・買い物リスト・購入記録・お店・写真が家族で共有されます。</Text>
         <Text style={s.small}>1人でもグループを作れば、データがクラウドにも保存されるのでバックアップになります。機種変更のときは、新しい端末で同じコードを入れるだけで戻ります。写真は小さくして送ります。</Text>

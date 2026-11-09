@@ -6,7 +6,7 @@ import * as Notifications from 'expo-notifications';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Alert, AppState, LayoutAnimation, View } from 'react-native';
 import { fetchPhotos, listen, push } from './cloud';
-import { diffShared, docJson, mergeFirst, mergeRemote, newId, newPhotoNames, notifyPlan, photoNames, refresh, sharedPart, today, toDate, validPhoto, type ListEntry, type Purchase, type Shared, type State } from './logic';
+import { diffShared, docJson, dropTempTags, mergeFirst, mergeRemote, newId, newPhotoNames, notifyPlan, photoNames, refresh, sharedPart, today, toDate, validPhoto, type ListEntry, type Purchase, type Shared, type State } from './logic';
 import { liftSubject, setWidgetData } from './native';
 
 const KEY = 'state:v1';
@@ -26,7 +26,7 @@ const initial = (): State => ({
     { id: newId(), name: '100円ショップ' },
     { id: newId(), name: 'ネット' },
   ],
-  settings: { notify: true, notifyDaysBefore: 7, notifyHour: 9, autoAdd: false, superUrl: '', checkHintShown: false, aiPhoto: false, aiVoice: false, iconOff: [], shelfView: 'cutout' },
+  settings: { notify: true, notifyDaysBefore: 7, notifyHour: 9, autoAdd: false, superUrl: '', checkHintShown: false, aiPhoto: false, aiVoice: false, iconOff: [], shelfView: 'cutout', showPics: true, byArea: false, areaHintShown: false, areaOrder: {} },
 });
 
 /** 古いデータや書き出しに無い設定項目を既定値で埋める（項目を足しても落ちないように） */
@@ -183,7 +183,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   const update = (fn: (s: State) => State) => {
     smooth();
-    setState((s) => (s ? fn(s) : s));
+    setState((s) => (s ? dropTempTags(s, fn(s)) : s));
   };
   return <StoreContext.Provider value={{ state, day, tick, update }}>{children}</StoreContext.Provider>;
 }
