@@ -12,7 +12,8 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const left = state.list.filter((e) => !e.purchaseId).length;
   return (
-    <Tabs style={{ backgroundColor: C.bg }}>
+    // style を渡すと Tabs 既定の flex: 1 が消えるので一緒に書く（消えると画面が潰れてタブが上に寄る）
+    <Tabs style={{ flex: 1, backgroundColor: C.bg }}>
       <TabSlot />
       <TabList style={[st.bar, { marginBottom: Math.max(insets.bottom - 6, 10) }]}>
         <TabTrigger name="index" href="/" asChild>
