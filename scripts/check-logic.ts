@@ -1,5 +1,5 @@
 // 実行: node scripts/check-logic.ts （Node 22.6+ の型除去で直接動く）
-import { addStore, addDays, cycleOf, diffDays, diffShared, docJson, formatCode, fromDocs, makeCode, matchIcon, mergeFirst, mergeRemote, newPhotoNames, nextDate, noShared, normalizeCode, notifyPlan, notifySummary, parseDateInput, refresh, parseSpoken, storeKey, sharedPart, splitSpoken, validPhoto, type Item, type Purchase, type State } from '../src/logic.ts';
+import { addStore, addDays, areaOf, unzipStore, zipStore, cycleOf, diffDays, diffShared, docJson, formatCode, fromDocs, makeCode, matchIcon, mergeFirst, mergeRemote, newPhotoNames, nextDate, noShared, normalizeCode, notifyPlan, notifySummary, parseDateInput, refresh, parseSpoken, storeKey, sharedPart, splitSpoken, validPhoto, type Item, type Purchase, type State } from '../src/logic.ts';
 
 eq(addDays('2026-01-30', 3), '2026-02-02');
 eq(diffDays('2026-12-30', '2027-01-02'), 3);
@@ -207,4 +207,35 @@ eq(parseSpoken('らくてんで水', ['楽天'])[0].store, '楽天');
   eq(addStore(st, 'アマゾン'), [st, 'a']);
   eq(addStore(st, 'コンビニ')[0].tags[1], { id: 't', name: 'コンビニ' });
   eq(addStore(st, ' 薬局 ', 'n'), [{ tags: [...st.tags, { id: 'n', name: '薬局' }] }, 'n']);
+}
+
+// 売り場: 品名から推す。品・行に決めてあればそれ
+eq(areaOf('ビール'), 'お酒');
+eq(areaOf('電池'), '日用品・洗剤');
+eq(areaOf('シャンプー'), '化粧品・ヘア・ボディケア');
+eq(areaOf('牛乳'), '卵・乳製品');
+eq(areaOf('なにか'), 'その他');
+eq(areaOf('牛乳', { area: '飲み物' }), '飲み物');
+eq(areaOf('牛乳', { area: '昔の売り場名' }), '卵・乳製品');
+
+// zip（無圧縮）: 作ったものを読み戻せる。CRC は標準の値（"123456789" → CBF43926）
+{
+  const enc = (t: string) => new TextEncoder().encode(t);
+  const z = zipStore([['data.json', enc('{"a":1}')], ['photos/x.jpg', new Uint8Array([0, 255, 7])], ['check.txt', enc('123456789')]]);
+  const back = unzipStore(z);
+  eq([...back.keys()], ['data.json', 'photos/x.jpg', 'check.txt']);
+  eq(new TextDecoder().decode(back.get('data.json')), '{"a":1}');
+  eq([...back.get('photos/x.jpg')!], [0, 255, 7]);
+  const dv = new DataView(z.buffer);
+  const crcAt = (() => { for (let i = 0; i < z.length - 4; i++) if (dv.getUint32(i, true) === 0x04034b50 && new TextDecoder().decode(z.slice(i + 30, i + 39)) === 'check.txt') return i + 14; return -1; })();
+  eq(dv.getUint32(crcAt, true).toString(16), 'cbf43926');
+  let threw = false;
+  try { unzipStore(new Uint8Array([1, 2, 3])); } catch { threw = true; }
+  eq(threw, true);
+  // 中身が 1 バイトでも壊れていたら読まない（今ある写真を壊れたもので置き換えない）
+  const bad = z.slice();
+  bad[crcAt + 16 + 'check.txt'.length] ^= 1;
+  threw = false;
+  try { unzipStore(bad); } catch { threw = true; }
+  eq(threw, true);
 }

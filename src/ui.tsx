@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import { ICONS } from './icons.generated';
 import { photoUri, smooth, toggleIconOff, useStore } from './store';
@@ -177,6 +177,21 @@ export function CloseX({ onPress = () => router.back() }: { onPress?: () => void
     <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel="閉じる" style={(st) => [{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.mainSoft, alignItems: 'center', justifyContent: 'center' }, press(st)]}>
       <Text style={{ fontSize: 15, color: C.ink, fontWeight: '600' }}>✕</Text>
     </Pressable>
+  );
+}
+
+/** 横にスワイプすると右から［削除］が出る行。押すまで消えない。ライブラリを足さず横スクロールで作る */
+export function SwipeRow({ children, onDelete }: { children: ReactNode; onDelete: () => void }) {
+  const [w, setW] = useState(0);
+  return (
+    <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false} snapToOffsets={[0, 84]} snapToEnd={false} decelerationRate="fast">
+        <View style={{ width: w || undefined }}>{children}</View>
+        <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel="削除" style={(st) => [{ width: 84, backgroundColor: C.danger, alignItems: 'center', justifyContent: 'center' }, press(st)]}>
+          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>削除</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 

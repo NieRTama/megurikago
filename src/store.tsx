@@ -1,12 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Alert, AppState, LayoutAnimation, View } from 'react-native';
 import { fetchPhotos, listen, push } from './cloud';
-import { diffShared, docJson, dropTempTags, mergeFirst, mergeRemote, newId, newPhotoNames, notifyPlan, photoNames, refresh, sharedPart, today, toDate, validPhoto, type ListEntry, type Purchase, type Shared, type State } from './logic';
+import { diffShared, docJson, dropTempTags, mergeFirst, mergeRemote, newId, newPhotoNames, notifyPlan, photoNames, refresh, sharedPart, today, toDate, unzipStore, validPhoto, zipStore, type ListEntry, type Purchase, type Shared, type State } from './logic';
 import { liftSubject, setWidgetData } from './native';
 
 const KEY = 'state:v1';
@@ -281,4 +281,76 @@ export async function pastePhoto(): Promise<string | undefined> {
   const name = `${newId()}.png`;
   await new File(Paths.document, name).write(img.data.replace(/^data:image\/\w+;base64,/, ''), { encoding: 'base64' });
   return name;
+}
+
+// ---- バックアップ（アプリの書類フォルダの backups に zip で残す。ファイル App からも見える） ----
+
+const backupDir = () => new Directory(Paths.document, 'backups');
+
+/** 文字列 ⇔ UTF-8 のバイト列。Hermes の TextDecoder の有無に頼らず、ファイルを経由してネイティブに変換させる */
+async function utf8(text: string) {
+  const f = new File(Paths.cache, `tmp-${newId()}.json`);
+  await f.write(text);
+  const b = await f.bytes();
+  f.delete();
+  return b;
+}
+async function fromUtf8(bytes: Uint8Array) {
+  const f = new File(Paths.cache, `tmp-${newId()}.json`);
+  await f.write(bytes);
+  const t = await f.text();
+  f.delete();
+  return t;
+}
+
+/** いまのデータを zip に保存してファイル名を返す。写真つきなら品の写真も入れる（無いファイルは飛ばす） */
+export async function saveBackup(s: State, withPhotos: boolean): Promise<string> {
+  const d = backupDir();
+  if (!d.exists) d.create();
+  const files: [string, Uint8Array][] = [['data.json', await utf8(JSON.stringify(s))]];
+  if (withPhotos)
+    for (const n of photoNames(s.items).filter(validPhoto)) {
+      const f = new File(Paths.document, n);
+      if (f.exists) files.push([`photos/${n}`, await f.bytes()]);
+    }
+  const now = new Date();
+  const name = `megurikago-${today()}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${withPhotos ? '-photos' : ''}.zip`;
+  // 同じ分にもう一度保存しても前のを上書きしない
+  let f = new File(d, name);
+  for (let i = 2; f.exists; i++) f = new File(d, name.replace('.zip', `-${i}.zip`));
+  await f.write(zipStore(files));
+  return f.name;
+}
+
+export const listBackups = (): File[] => {
+  const d = backupDir();
+  if (!d.exists) return [];
+  return d
+    .list()
+    .filter((f): f is File => f instanceof File && f.name.endsWith('.zip'))
+    .sort((a, b) => b.name.localeCompare(a.name));
+};
+
+/** zip を読み、写真を書類フォルダに戻してデータを返す（データの置き換えは呼ぶ側で） */
+export async function readBackup(f: File): Promise<{ data: State; photos: number }> {
+  const z = unzipStore(await f.bytes());
+  const json = z.get('data.json');
+  if (!json) throw new Error('data.json がありません');
+  const data = checkBackup(JSON.parse(await fromUtf8(json)));
+  let photos = 0;
+  for (const [path, bytes] of z) {
+    const n = path.replace(/^photos\//, '');
+    if (path === n || !validPhoto(n)) continue; // photos/ の下の、写真として正しい名前だけ書く
+    photos++;
+    // 写真の名前は作るたびに新しい（newId）ので、同じ名前なら同じ写真。今ある写真は書き直さない
+    const f = new File(Paths.document, n);
+    if (!f.exists) await f.write(bytes);
+  }
+  return { data, photos };
+}
+
+/** 読み込んだバックアップの形を確かめる（文字の書き出しと zip で共通） */
+export function checkBackup(data: State): State {
+  if (data?.version !== 1 || ![data.items, data.list, data.purchases, data.tags].every(Array.isArray)) throw new Error('形式が違います');
+  return data;
 }

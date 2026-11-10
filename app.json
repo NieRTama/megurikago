@@ -14,7 +14,9 @@
       "bundleIdentifier": "com.niertama.megurikago",
       "infoPlist": {
         "CFBundleDisplayName": "Megurikago",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
       },
       "entitlements": {
         "com.apple.security.application-groups": [

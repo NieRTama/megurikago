@@ -1,34 +1,14 @@
 import { Link, type Href } from 'expo-router';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { realTags, type Settings, type State } from '../../logic';
-import { useStore, withDefaults } from '../../store';
+import { realTags, type Settings } from '../../logic';
+import { useStore } from '../../store';
 import { C, Chip, s } from '../../ui';
 
 export default function Me() {
   const { state, update } = useStore();
   const st = state.settings;
   const setS = (patch: Partial<Settings>) => update((x) => ({ ...x, settings: { ...x.settings, ...patch } }));
-
-  const importJson = () =>
-    Alert.prompt('バックアップを読み込む', '書き出した文字をそのまま貼り付けてください。いまのデータは置き換わります。', (text) => {
-      try {
-        const data = JSON.parse(text) as State;
-        if (data.version !== 1 || ![data.items, data.list, data.purchases, data.tags].every(Array.isArray)) throw new Error('形式が違います');
-        // 家族グループの参加状態は書き出しに頼らず、この端末のものを保つ（クラウドの内容は、参加中なら読み込んだ内容に合わせて更新される）
-        const go = () => {
-          update((cur) => ({ ...withDefaults(data), cloud: cur.cloud }));
-          Alert.alert('読み込みました', '写真はバックアップに含まれないため、必要なら撮り直してください。');
-        };
-        if (!state.cloud) return go();
-        Alert.alert('家族のクラウドのデータも置き換わります', '家族グループに参加中なので、読み込んだ内容がクラウドにも送られ、ほかの人の端末のデータも置き換わります。', [
-          { text: 'やめる', style: 'cancel' },
-          { text: '読み込む', style: 'destructive', onPress: go },
-        ]);
-      } catch (e) {
-        Alert.alert('読み込めませんでした', String(e));
-      }
-    });
 
   return (
     <SafeAreaView edges={['top']} style={s.screen}>
@@ -83,15 +63,8 @@ export default function Me() {
           <Go href="/help" label="使い方" divider />
         </View>
 
-        <Text style={s.h2}>バックアップ</Text>
-        <View style={[s.card, { gap: 12 }]}>
-          <Pressable onPress={() => Share.share({ message: JSON.stringify(state) })}>
-            <Text style={s.link}>データを書き出す（メモ・メールなどに保存）</Text>
-          </Pressable>
-          <Pressable onPress={importJson}>
-            <Text style={s.link}>書き出したデータを読み込む</Text>
-          </Pressable>
-          <Text style={s.small}>入れ直すとデータが消えることがあるので、ときどき書き出しておくと安心です（写真は含みません）。</Text>
+        <View style={[s.card, { marginTop: 16, paddingVertical: 4 }]}>
+          <Go href="/backup" label="バックアップ" note="写真つきで保存できます" />
         </View>
       </ScrollView>
     </SafeAreaView>

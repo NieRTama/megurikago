@@ -2,9 +2,9 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { areaOf, areaOrderFor, md, nextDate, type ListEntry, type Tag } from '../../logic';
+import { addStore, areaOf, areaOrderFor, md, nextDate, type ListEntry, type Tag } from '../../logic';
 import { checkEntry, removeEntry, uncheckEntry, useStore } from '../../store';
-import { askDate, Button, C, press, s, smooth, TagBar, tagName, TempBadge, ZoomThumb } from '../../ui';
+import { askDate, Button, C, press, s, smooth, SwipeRow, TagBar, tagName, TempBadge, ZoomThumb } from '../../ui';
 
 export default function ShoppingList() {
   const { state, day, update } = useStore();
@@ -45,7 +45,7 @@ export default function ShoppingList() {
   const blocks = (entries: ListEntry[], t?: Tag): [string | undefined, ListEntry[]][] => {
     if (!st.byArea || !byStore) return [[undefined, entries]];
     return areaOrderFor(st, t?.id)
-      .map((a) => [a, entries.filter((e) => areaOf(e.name, item(e)) === a)] as [string, ListEntry[]])
+      .map((a) => [a, entries.filter((e) => areaOf(e.name, item(e) ?? e) === a)] as [string, ListEntry[]])
       .filter(([, es]) => es.length);
   };
 
@@ -98,9 +98,20 @@ export default function ShoppingList() {
                     {closed.includes(label) ? '▸' : '▾'} {label}（{entries.length}）
                   </Text>
                   {tag?.temp && (
-                    <View style={{ marginTop: 18 }}>
+                    // 押すと、このお店を登録して残すか聞く
+                    <Pressable
+                      style={{ marginTop: 18 }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${tag.name}を登録して残すか選ぶ`}
+                      onPress={() =>
+                        Alert.alert(`「${tag.name}」をお店として残しますか？`, '残さなければ、このお店の品がリストから無くなったときに消えます。残すと、ほかの画面のお店の選択肢にも出ます。', [
+                          { text: 'このまま', style: 'cancel' },
+                          { text: 'お店として残す', onPress: () => (smooth(), update((x) => addStore(x, tag.name)[0])) },
+                        ])
+                      }>
                       <TempBadge />
-                    </View>
+                    </Pressable>
                   )}
                 </Pressable>
               ) : (
@@ -114,9 +125,9 @@ export default function ShoppingList() {
                       {es.map((e, i) => {
                         const done = pending.includes(e.id);
                         return (
+                          <SwipeRow key={e.id} onDelete={() => (smooth(), update((x) => removeEntry(x, e.id)))}>
                           <Pressable
-                            key={e.id}
-                            onPress={() => !done && check(e)}
+                            onPress={() => router.push(item(e) ? `/item/${e.itemId}` : `/entry/${e.id}`)}
                             onLongPress={() => Alert.alert(`${e.name}をリストから外しますか？`, undefined, [{ text: 'やめる', style: 'cancel' }, { text: '外す', style: 'destructive', onPress: () => update((x) => removeEntry(x, e.id)) }])}
                             style={[s.row, { paddingVertical: 12 }, !!i && s.divider]}>
                             <ZoomThumb item={item(e)} name={e.name} memo={e.memo} shop={tagName(state.tags, e.tagId)} size={36} />
@@ -124,10 +135,14 @@ export default function ShoppingList() {
                               <Text style={[s.text, done && { textDecorationLine: 'line-through', color: C.sub }]}>{e.name}</Text>
                               {!!e.memo && <Text style={s.small}>{e.memo}</Text>}
                             </View>
-                            <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: done ? C.main : C.sub, backgroundColor: done ? C.main : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                              {done && <Text style={{ color: '#fff', fontWeight: '800' }}>✓</Text>}
-                            </View>
+                            {/* 丸だけがチェック。行のほかの部分は詳細へ */}
+                            <Pressable onPress={() => !done && check(e)} hitSlop={12} accessibilityRole="checkbox" accessibilityState={{ checked: done }} accessibilityLabel={`${e.name}を買った`}>
+                              <View style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: done ? C.main : C.sub, backgroundColor: done ? C.main : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                                {done && <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>✓</Text>}
+                              </View>
+                            </Pressable>
                           </Pressable>
+                          </SwipeRow>
                         );
                       })}
                     </View>

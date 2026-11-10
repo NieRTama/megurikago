@@ -1,8 +1,8 @@
 import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { addPurchase, addToList, deleteItem, deletePhoto, removeEntry, useStore } from '../../store';
-import { addDays, cycleOf, diffDays, lastPurchase, md, newId, nextDate, parseDateInput, SOON_DAYS } from '../../logic';
+import { addDays, areaOf, cycleOf, diffDays, lastPurchase, md, newId, nextDate, parseDateInput, SOON_DAYS } from '../../logic';
 import { Button, C, press, RhythmBar, s, smooth, tagName, Thumb } from '../../ui';
 
 export default function ItemDetail() {
@@ -146,6 +146,11 @@ export default function ItemDetail() {
           </Link>
         )}
       </View>
+
+      <Pressable onPress={() => router.push(`/area?item=${item.id}`)} style={(p) => [StyleSheet.flatten([s.card, s.row, { marginTop: 16 }]), press(p)]}>
+        <Text style={[s.small, { flex: 1 }]}>売り場</Text>
+        <Text style={s.link}>{areaOf(item.name, item)} ›</Text>
+      </Pressable>
 
       <Text style={s.h2}>ネットで探す</Text>
       <View style={[s.card, { gap: 12 }]}>

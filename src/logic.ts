@@ -48,6 +48,8 @@ export type ListEntry = {
   purchaseId?: string;
   /** チェックした日（この日のあいだ「今日買ったもの」に出す） */
   checkedOn?: string;
+  /** 売り場（いつもの品に登録していない行だけ。登録した品は品の area） */
+  area?: string;
 };
 
 export type Settings = {
@@ -73,6 +75,7 @@ export type Settings = {
   byArea: boolean;
   /** 売り場順を初めてオンにしたときの案内を出した */
   areaHintShown: boolean;
+  netHintShown?: boolean;
   /** お店（tagId）ごとの売り場の並び。無いお店は AREAS の順（この端末だけ） */
   areaOrder: Record<string, string[]>;
 };
@@ -268,22 +271,40 @@ export function notifySummary(s: Settings, allowed: boolean): string {
 
 // ---- 売り場（買い物リストの「売り場順」） ----
 
-export const AREAS = ['野菜・果物', '肉・魚', '卵・乳製品', 'パン・米・麺', '調味料', '飲み物', 'お菓子', '冷凍食品', '日用品・洗剤', '薬・衛生用品', 'その他'];
+export const AREAS = [
+  '野菜・果物', '魚介', '肉', '惣菜・弁当', '豆腐・納豆・練り物・漬物・味噌', '卵・乳製品', 'パン', '米・乾麺・パスタ', '調味料・油・粉', '缶詰・乾物・レトルト',
+  'お菓子', '飲み物', 'お酒', '冷凍食品・アイス', '日用品・洗剤', '薬・衛生用品', '化粧品・ヘア・ボディケア', 'ベビー用品', 'ペット用品', '文房具・本',
+  '衣類・靴', '台所・生活雑貨', '花・園芸', 'その他',
+];
+// 品名に含まれる言葉 → 売り場。いちばん長く一致した言葉で決める（matchIcon）
 const AREA_WORDS: [string[], string][] = [
-  [['野菜', 'キャベツ', 'レタス', 'トマト', 'きゅうり', '玉ねぎ', 'たまねぎ', 'にんじん', 'じゃがいも', 'ねぎ', 'もやし', 'ほうれん草', '果物', 'バナナ', 'りんご', 'みかん', 'いちご'], '野菜・果物'],
-  [['肉', '豚', '鶏', 'ハム', 'ベーコン', 'ソーセージ', 'ウインナー', '魚', '鮭', 'さけ', '刺身', 'ツナ'], '肉・魚'],
-  [['卵', 'たまご', '牛乳', 'ミルク', 'ヨーグルト', 'チーズ', 'バター', '豆腐', '納豆'], '卵・乳製品'],
-  [['パン', '米', 'ごはん', 'パスタ', 'うどん', 'そば', 'ラーメン', '麺', 'シリアル'], 'パン・米・麺'],
-  [['醤油', 'しょうゆ', '味噌', 'みそ', '砂糖', '塩', '酢', '油', 'マヨネーズ', 'ケチャップ', 'ソース', 'だし', '小麦粉'], '調味料'],
-  [['水', 'お茶', '茶', 'コーヒー', 'ジュース', 'ビール', '酒', '炭酸'], '飲み物'],
-  [['お菓子', 'チョコ', 'ポテトチップス', 'クッキー', 'アイス', 'ガム'], 'お菓子'],
-  [['冷凍'], '冷凍食品'],
-  [['洗剤', '柔軟剤', 'ティッシュ', 'トイレットペーパー', 'キッチンペーパー', 'ラップ', 'ゴミ袋', 'スポンジ', 'シャンプー', 'リンス', 'コンディショナー', 'ボディソープ', '石鹸', 'せっけん', '歯ブラシ', '歯磨き', '電池', '電球'], '日用品・洗剤'],
-  [['薬', 'マスク', '絆創膏', '目薬', '生理用品', 'ナプキン', 'おむつ', '綿棒'], '薬・衛生用品'],
+  [['野菜', 'キャベツ', 'レタス', 'トマト', 'きゅうり', '玉ねぎ', 'たまねぎ', 'にんじん', 'じゃがいも', 'ねぎ', 'もやし', 'ほうれん草', 'きのこ', '果物', 'バナナ', 'りんご', 'みかん', 'いちご'], '野菜・果物'],
+  [['魚', '鮭', 'さけ', '刺身', 'まぐろ', 'えび', 'いか', 'たこ', 'しらす'], '魚介'],
+  [['肉', '豚', '鶏', '牛肉', 'ひき肉', 'ハム', 'ベーコン', 'ソーセージ', 'ウインナー'], '肉'],
+  [['惣菜', 'お惣菜', '弁当', 'お弁当', 'おにぎり', 'サラダ', '唐揚げ', 'コロッケ'], '惣菜・弁当'],
+  [['豆腐', '納豆', '油揚げ', 'ちくわ', 'かまぼこ', '練り物', '漬物', 'キムチ', '味噌', 'みそ'], '豆腐・納豆・練り物・漬物・味噌'],
+  [['卵', 'たまご', '牛乳', 'ミルク', 'ヨーグルト', 'チーズ', 'バター'], '卵・乳製品'],
+  [['パン', '食パン'], 'パン'],
+  [['米', 'お米', 'ごはん', 'パスタ', 'スパゲティ', 'うどん', 'そば', 'そうめん', 'ラーメン', '麺', 'シリアル'], '米・乾麺・パスタ'],
+  [['醤油', 'しょうゆ', '砂糖', '塩', '酢', '油', 'オリーブオイル', 'マヨネーズ', 'ケチャップ', 'ソース', 'だし', '小麦粉', '片栗粉', 'みりん'], '調味料・油・粉'],
+  [['缶詰', 'ツナ', 'カレー', 'レトルト', 'わかめ', 'のり', '海苔', 'かつお節', 'インスタント'], '缶詰・乾物・レトルト'],
+  [['お菓子', 'チョコ', 'ポテトチップス', 'クッキー', 'ガム', 'せんべい', 'グミ'], 'お菓子'],
+  [['水', 'お茶', '茶', 'コーヒー', 'ジュース', '炭酸', '紅茶'], '飲み物'],
+  [['酒', 'お酒', 'ビール', 'ワイン', '日本酒', '焼酎', 'ハイボール', 'チューハイ'], 'お酒'],
+  [['冷凍', 'アイス', '冷凍食品'], '冷凍食品・アイス'],
+  [['洗剤', '柔軟剤', '漂白剤', 'ティッシュ', 'トイレットペーパー', 'ゴミ袋', '電池', '電球', '芳香剤'], '日用品・洗剤'],
+  [['薬', 'マスク', '絆創膏', '目薬', '生理用品', 'ナプキン', '綿棒', '湿布', 'ビタミン', 'サプリ'], '薬・衛生用品'],
+  [['シャンプー', 'リンス', 'コンディショナー', 'ボディソープ', '石鹸', 'せっけん', '歯ブラシ', '歯磨き', '化粧水', '日焼け止め', 'ハンドクリーム'], '化粧品・ヘア・ボディケア'],
+  [['おむつ', 'おしりふき', 'ミルク缶', '離乳食'], 'ベビー用品'],
+  [['ペット', 'ドッグフード', 'キャットフード', '猫砂', 'ペットシーツ'], 'ペット用品'],
+  [['ノート', 'ペン', '鉛筆', '文房具', '本', '雑誌', 'テープ'], '文房具・本'],
+  [['靴下', '下着', '服', '靴', 'シャツ'], '衣類・靴'],
+  [['キッチンペーパー', 'ラップ', 'アルミホイル', 'スポンジ', '保存袋', '食器'], '台所・生活雑貨'],
+  [['花', '培養土', '肥料', '花の種', '苗'], '花・園芸'],
 ];
 
 /** 品の売り場。品に決めてあればそれ、無ければ品名から推す（いちばん長く一致した言葉）。分からなければ「その他」 */
-export const areaOf = (name: string, item?: Item) => (item?.area && AREAS.includes(item.area) ? item.area : matchIcon(name, AREA_WORDS) ?? 'その他');
+export const areaOf = (name: string, item?: { area?: string }) => (item?.area && AREAS.includes(item.area) ? item.area : matchIcon(name, AREA_WORDS) ?? 'その他');
 
 /** お店ごとの売り場の並び（保存した並び + 足りない売り場を後ろに） */
 export function areaOrderFor(s: Settings, tagId?: string): string[] {
@@ -294,6 +315,12 @@ export function areaOrderFor(s: Settings, tagId?: string): string[] {
 
 /** 一時的なお店を除いたお店（棚・品の登録・お店の設定で使う） */
 export const realTags = (tags: Tag[]) => tags.filter((t) => !t.temp);
+
+/** よく使うネットスーパーの名前と検索 URL。わたし画面で入れていなければ Amazonフレッシュ */
+export const superLink = (superUrl: string, name: string): [string, string] => {
+  const q = encodeURIComponent(name);
+  return superUrl ? ['ネットスーパー', superUrl.replace('{q}', q)] : ['Amazonフレッシュ', `https://www.amazon.co.jp/s?k=${q}&i=amazonfresh`];
+};
 
 /** お店を登録する。同じお店（storeKey が同じ）があればそれを使い、一時的なお店なら正式に登録し直す。登録したお店の id も返す */
 export function addStore<S extends { tags: Tag[] }>(st: S, name: string, newTagId = newId()): [S, string] {
@@ -461,3 +488,94 @@ export const makeCode = (rand: (n: number) => number) => Array.from({ length: 8 
 export const formatCode = (c: string) => `${c.slice(0, 4)}-${c.slice(4)}`;
 /** 入力のゆれ（小文字・全角・ハイフン・空白）を直す */
 export const normalizeCode = (t: string) => t.normalize('NFKC').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// ---- バックアップの zip（無圧縮）。写真の JPEG はもう縮まないので圧縮しない。部品を足さずに読み書きする ----
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = (b: Uint8Array) => {
+  let c = 0xffffffff;
+  for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xff] ^ (c >>> 8); // for...of は Hermes で遅い
+  return (c ^ 0xffffffff) >>> 0;
+};
+// 名前は ASCII だけにする（data.json と写真の名前 = validPhoto）。UTF-8 の変換を持たずに済む
+const ascii = (t: string) => Uint8Array.from(t, (ch) => ch.charCodeAt(0) & 0x7f);
+
+/** 無圧縮の zip を作る。名前は ASCII のみ。
+ * ponytail: 全部をメモリに持つので、写真の合計の約 2 倍を一時に使う。数百 MB になって落ちるなら、ファイルへ順に書く形にする */
+export function zipStore(files: [string, Uint8Array][]): Uint8Array {
+  const parts: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
+  for (const [name, data] of files) {
+    const n = ascii(name);
+    const crc = crc32(data);
+    const head = (size: number, sig: number) => {
+      const h = new Uint8Array(size);
+      const v = new DataView(h.buffer);
+      v.setUint32(0, sig, true);
+      return [h, v] as const;
+    };
+    const [loc, lv] = head(30, 0x04034b50);
+    lv.setUint16(4, 20, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, n.length, true);
+    const [cen, cv] = head(46, 0x02014b50);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, n.length, true);
+    cv.setUint32(42, offset, true);
+    parts.push(loc, n, data);
+    central.push(cen, n);
+    offset += 30 + n.length + data.length;
+  }
+  const cdSize = central.reduce((a, b) => a + b.length, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, cdSize, true);
+  ev.setUint32(16, offset, true);
+  const all = [...parts, ...central, end];
+  const out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+  let p = 0;
+  for (const b of all) {
+    out.set(b, p);
+    p += b.length;
+  }
+  return out;
+}
+
+/** zipStore で作った（無圧縮の）zip を読む。名前 → 中身。形が違えば例外 */
+export function unzipStore(z: Uint8Array): Map<string, Uint8Array> {
+  const v = new DataView(z.buffer, z.byteOffset, z.byteLength);
+  let e = z.length - 22;
+  while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('zip ではありません');
+  const count = v.getUint16(e + 10, true);
+  let c = v.getUint32(e + 16, true);
+  const out = new Map<string, Uint8Array>();
+  for (let i = 0; i < count; i++) {
+    if (v.getUint32(c, true) !== 0x02014b50) throw new Error('zip が壊れています');
+    if (v.getUint16(c + 10, true) !== 0) throw new Error('圧縮された zip は読めません');
+    const size = v.getUint32(c + 20, true);
+    const nameLen = v.getUint16(c + 28, true);
+    const name = String.fromCharCode(...z.subarray(c + 46, c + 46 + nameLen));
+    const loc = v.getUint32(c + 42, true);
+    const start = loc + 30 + v.getUint16(loc + 26, true) + v.getUint16(loc + 28, true);
+    const data = z.subarray(start, start + size); // 写ししないので、読み込みでメモリを倍使わない
+    if (crc32(data) !== v.getUint32(c + 16, true)) throw new Error(`${name} が壊れています`);
+    out.set(name, data);
+    c += 46 + nameLen + v.getUint16(c + 30, true) + v.getUint16(c + 32, true);
+  }
+  return out;
+}

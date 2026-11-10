@@ -1,6 +1,7 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { cycleOf, diffDays, inList, nextDate, realTags, SOON_DAYS, type Item } from '../../logic';
 import { addToList, useStore } from '../../store';
@@ -35,8 +36,8 @@ export default function Shelf() {
     <SafeAreaView edges={['top']} style={s.screen}>
       <View style={[s.row, { paddingRight: 20, gap: 16 }]}>
         <Text style={[s.title, { flex: 1 }]}>いつもの</Text>
-        <Pressable onPress={() => (smooth(), setQuery(query === undefined ? '' : undefined))} hitSlop={8}>
-          <Text style={s.link}>{query === undefined ? '検索' : '閉じる'}</Text>
+        <Pressable onPress={() => (smooth(), setQuery(query === undefined ? '' : undefined))} hitSlop={8} accessibilityLabel={query === undefined ? '検索' : '検索を閉じる'}>
+          <SymbolView name={query === undefined ? 'magnifyingglass' : 'xmark'} tintColor={C.main} size={22} weight="semibold" />
         </Pressable>
         <Pressable onPress={() => (smooth(), setSort(SORTS[(SORTS.indexOf(sort) + 1) % SORTS.length]))} hitSlop={8}>
           <Text style={s.link}>{sort} ⇅</Text>
